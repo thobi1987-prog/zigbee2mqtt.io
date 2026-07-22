@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Walo Böden · Lagerverwaltung</title>
+<style>
+  :root {
+    --ground: #f5f3f0; --surface: #ffffff; --surface-2: #efece7;
+    --border: #e0dbd3; --border-strong: #cfc7bb; --ink: #23201b; --muted: #7a7469;
+    --accent: #a4632a; --accent-ink: #ffffff; --accent-soft: #f3e6d7;
+    --ok: #2f7d54; --ok-soft: #e2efe7; --warn: #b3821c; --warn-soft: #f6ecd2;
+    --crit: #b64328; --crit-soft: #f6e0d9;
+    --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --font-num: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --radius: 10px; --shadow: 0 1px 2px rgba(35,32,27,.06), 0 6px 20px rgba(35,32,27,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:#17150f; --surface:#201d16; --surface-2:#2a261d; --border:#3a3527;
+      --border-strong:#4a4433; --ink:#ece7dc; --muted:#9d9686;
+      --accent:#cf8b4f; --accent-ink:#1a1509; --accent-soft:#33281a;
+      --ok:#64b98a; --ok-soft:#1e3327; --warn:#d6ab4d; --warn-soft:#362c14;
+      --crit:#e07a5c; --crit-soft:#3a231b;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground:#f5f3f0; --surface:#fff; --surface-2:#efece7; --border:#e0dbd3;
+    --border-strong:#cfc7bb; --ink:#23201b; --muted:#7a7469;
+    --accent:#a4632a; --accent-ink:#fff; --accent-soft:#f3e6d7;
+    --ok:#2f7d54; --ok-soft:#e2efe7; --warn:#b3821c; --warn-soft:#f6ecd2;
+    --crit:#b64328; --crit-soft:#f6e0d9;
+    --shadow:0 1px 2px rgba(35,32,27,.06), 0 6px 20px rgba(35,32,27,.05);
+  }
+  :root[data-theme="dark"] {
+    --ground:#17150f; --surface:#201d16; --surface-2:#2a261d; --border:#3a3527;
+    --border-strong:#4a4433; --ink:#ece7dc; --muted:#9d9686;
+    --accent:#cf8b4f; --accent-ink:#1a1509; --accent-soft:#33281a;
+    --ok:#64b98a; --ok-soft:#1e3327; --warn:#d6ab4d; --warn-soft:#362c14;
+    --crit:#e07a5c; --crit-soft:#3a231b;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.28);
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--font-ui); line-height:1.5; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1080px; margin:0 auto; padding:28px 20px 64px; }
+  header.app { display:flex; align-items:center; gap:14px; margin-bottom:22px; }
+  .logo { width:42px; height:42px; border-radius:9px; flex:none;
+    background:linear-gradient(150deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000 25%));
+    display:grid; place-items:center; color:var(--accent-ink); box-shadow:var(--shadow); }
+  .logo svg { width:24px; height:24px; }
+  .brand h1 { margin:0; font-size:19px; font-weight:700; letter-spacing:-.02em; }
+  .brand p { margin:1px 0 0; font-size:12.5px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.09em; }
+  .status { margin-left:auto; display:flex; align-items:center; gap:7px;
+    font-size:12px; color:var(--muted); border:1px solid var(--border-strong);
+    border-radius:999px; padding:5px 11px; }
+  .status .dot { width:8px; height:8px; border-radius:50%; background:var(--ok); }
+  .status.off .dot { background:var(--crit); }
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
+  .kpi { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; box-shadow:var(--shadow); }
+  .kpi .label { font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); }
+  .kpi .val { font-family:var(--font-num); font-size:26px; font-weight:600; margin-top:4px;
+    letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
+  .kpi .val small { font-size:14px; color:var(--muted); font-weight:500; }
+  .kpi.alert .val { color:var(--crit); }
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:16px; }
+  .tab { appearance:none; background:none; border:none; font:inherit; cursor:pointer;
+    padding:9px 14px; color:var(--muted); font-weight:600; font-size:14px;
+    border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tab[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--accent); }
+  .tab:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
+  .toolbar { display:flex; gap:10px; margin-bottom:14px; align-items:center; flex-wrap:wrap; }
+  .search { flex:1 1 220px; min-width:180px; display:flex; align-items:center; gap:8px;
+    background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:8px 12px; }
+  .search input { border:none; background:none; font:inherit; color:var(--ink); width:100%; outline:none; }
+  .search svg { width:16px; height:16px; color:var(--muted); flex:none; }
+  button.btn { appearance:none; font:inherit; font-weight:600; font-size:13.5px; cursor:pointer;
+    border-radius:9px; padding:9px 15px; border:1px solid transparent; white-space:nowrap; }
+  .btn.primary { background:var(--accent); color:var(--accent-ink); box-shadow:var(--shadow); }
+  .btn.primary:hover { background:color-mix(in srgb, var(--accent) 88%, #000); }
+  .btn.ghost { background:var(--surface); color:var(--ink); border-color:var(--border-strong); }
+  .btn.ghost:hover { background:var(--surface-2); }
+  .btn.mini { padding:5px 10px; font-size:12.5px; border-radius:7px; }
+  .btn.in { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, var(--border)); background:var(--surface); }
+  .btn.in:hover { background:var(--ok-soft); }
+  .btn.out { color:var(--crit); border-color:color-mix(in srgb, var(--crit) 40%, var(--border)); background:var(--surface); }
+  .btn.out:hover { background:var(--crit-soft); }
+  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); overflow:hidden; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; min-width:640px; }
+  thead th { text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--muted); font-weight:600; padding:11px 14px; background:var(--surface-2);
+    border-bottom:1px solid var(--border); white-space:nowrap; }
+  th.num, td.num { text-align:right; font-family:var(--font-num); font-variant-numeric:tabular-nums; }
+  tbody td { padding:12px 14px; border-bottom:1px solid var(--border); font-size:14px; vertical-align:middle; }
+  tbody tr:last-child td { border-bottom:none; }
+  tbody tr:hover { background:color-mix(in srgb, var(--surface-2) 55%, transparent); }
+  .nummer { font-family:var(--font-num); font-size:12.5px; color:var(--muted); }
+  .bez { font-weight:600; }
+  .bestand-val { font-size:15px; font-weight:600; }
+  .pill { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600;
+    padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .pill::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .pill.ok { color:var(--ok); background:var(--ok-soft); }
+  .pill.warn { color:var(--warn); background:var(--warn-soft); }
+  .pill.crit { color:var(--crit); background:var(--crit-soft); }
+  .row-actions { display:flex; gap:6px; justify-content:flex-end; }
+  .typ { display:inline-flex; align-items:center; font-weight:600; font-size:12px;
+    padding:2px 8px; border-radius:6px; }
+  .typ.zugang { color:var(--ok); background:var(--ok-soft); }
+  .typ.abgang { color:var(--crit); background:var(--crit-soft); }
+  .typ.korrektur, .typ.anfangsbestand { color:var(--accent); background:var(--accent-soft); }
+  .delta-plus { color:var(--ok); } .delta-minus { color:var(--crit); }
+  .muted-cell { color:var(--muted); }
+  .empty { padding:40px; text-align:center; color:var(--muted); font-size:14px; }
+  dialog { border:1px solid var(--border-strong); border-radius:14px; padding:0; width:min(400px,92vw);
+    background:var(--surface); color:var(--ink); box-shadow:0 24px 60px rgba(0,0,0,.28); }
+  dialog::backdrop { background:rgba(20,17,12,.45); }
+  .dlg-head { padding:18px 20px 10px; }
+  .dlg-head h3 { margin:0; font-size:16px; letter-spacing:-.01em; }
+  .dlg-head p { margin:3px 0 0; font-size:13px; color:var(--muted); }
+  .dlg-body { padding:6px 20px 8px; display:grid; gap:12px; }
+  .field { display:grid; gap:5px; }
+  .field label { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .field input { font:inherit; padding:9px 11px; border-radius:8px; border:1px solid var(--border-strong);
+    background:var(--ground); color:var(--ink); outline:none; }
+  .field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .field .hint { font-size:12px; color:var(--muted); text-transform:none; letter-spacing:0; font-weight:400; }
+  .dlg-err { color:var(--crit); font-size:13px; padding:0 20px; min-height:18px; }
+  .dlg-foot { padding:12px 20px 18px; display:flex; gap:10px; justify-content:flex-end; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  footer.note { margin-top:26px; font-size:12.5px; color:var(--muted); text-align:center; }
+  @media (max-width:620px) { .kpis { grid-template-columns:1fr 1fr; } .status .txt { display:none; } }
+  @media (prefers-reduced-motion: no-preference) {
+    tbody tr { transition:background .12s ease; } .btn { transition:background .12s ease; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 7h18M3 12h18M3 17h18M8 7v5M15 12v5M12 17v3"/>
+      </svg>
+    </div>
+    <div class="brand">
+      <h1>Walo Böden</h1>
+      <p>Lagerverwaltung</p>
+    </div>
+    <span class="status" id="status"><span class="dot"></span><span class="txt">verbunden</span></span>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-bestand" aria-selected="true" aria-controls="view-bestand">Bestand</button>
+    <button class="tab" role="tab" id="tab-journal" aria-selected="false" aria-controls="view-journal">Journal</button>
+  </div>
+
+  <div id="view-bestand" role="tabpanel" aria-labelledby="tab-bestand">
+    <div class="toolbar">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="search" placeholder="Artikel suchen (Nummer oder Bezeichnung)…" aria-label="Artikel suchen">
+      </div>
+      <button class="btn primary" id="btn-add">+ Artikel anlegen</button>
+    </div>
+    <div class="card"><div class="scroll"><table>
+      <thead><tr>
+        <th>Artikel</th><th class="num">Bestand</th><th class="num">Mindest</th>
+        <th class="num">Lagerwert</th><th>Status</th><th style="text-align:right">Buchen</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div></div>
+  </div>
+
+  <div id="view-journal" role="tabpanel" aria-labelledby="tab-journal" hidden>
+    <div class="card"><div class="scroll"><table>
+      <thead><tr>
+        <th>Zeitpunkt</th><th>Artikel</th><th>Bewegung</th><th class="num">Menge</th><th>Beleg</th>
+      </tr></thead>
+      <tbody id="journal-rows"></tbody>
+    </table></div></div>
+  </div>
+
+  <footer class="note">
+    Walo Böden – Lager · Daten zentral auf dem Raspberry Pi (SQLite) · alle Geräte im Netzwerk sehen denselben Stand.
+  </footer>
+</div>
+
+<dialog id="dlg-buchung">
+  <form method="dialog">
+    <div class="dlg-head"><h3 id="dlg-titel">Zugang buchen</h3><p id="dlg-sub">—</p></div>
+    <div class="dlg-body">
+      <div class="field">
+        <label for="in-menge">Menge</label>
+        <input id="in-menge" type="number" step="any" min="0" inputmode="decimal" autocomplete="off">
+        <span class="hint" id="in-einheit">Einheit</span>
+      </div>
+      <div class="field">
+        <label for="in-beleg">Beleg <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <input id="in-beleg" type="text" placeholder="z.B. LS-2026-014" autocomplete="off">
+      </div>
+    </div>
+    <div class="dlg-err" id="dlg-err"></div>
+    <div class="dlg-foot">
+      <button class="btn ghost" value="cancel" type="submit">Abbrechen</button>
+      <button class="btn primary" value="ok" type="submit">Buchen</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-artikel">
+  <form method="dialog">
+    <div class="dlg-head"><h3>Neuen Artikel anlegen</h3><p>Stammdaten des Artikels erfassen.</p></div>
+    <div class="dlg-body">
+      <div class="grid-2">
+        <div class="field"><label for="a-nummer">Artikelnummer</label>
+          <input id="a-nummer" type="text" placeholder="z.B. P-EI-14" autocomplete="off"></div>
+        <div class="field"><label for="a-einheit">Einheit</label>
+          <input id="a-einheit" type="text" value="m²" autocomplete="off"></div>
+      </div>
+      <div class="field"><label for="a-bez">Bezeichnung</label>
+        <input id="a-bez" type="text" placeholder="z.B. Parkett Eiche natur" autocomplete="off"></div>
+      <div class="grid-2">
+        <div class="field"><label for="a-bestand">Anfangsbestand</label>
+          <input id="a-bestand" type="number" step="any" min="0" value="0" autocomplete="off"></div>
+        <div class="field"><label for="a-min">Mindestbestand</label>
+          <input id="a-min" type="number" step="any" min="0" value="0" autocomplete="off"></div>
+      </div>
+      <div class="field"><label for="a-preis">Einkaufspreis / Einheit (CHF)</label>
+        <input id="a-preis" type="number" step="any" min="0" value="0" autocomplete="off">
+        <span class="hint">Grundlage für den Lagerwert.</span></div>
+    </div>
+    <div class="dlg-err" id="a-err"></div>
+    <div class="dlg-foot">
+      <button class="btn ghost" value="cancel" type="submit">Abbrechen</button>
+      <button class="btn primary" value="ok" type="submit">Artikel anlegen</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+  var state = { artikel: [], journal: [] };
+  var byNr = {};
+
+  var elRows = document.getElementById("rows");
+  var elJournal = document.getElementById("journal-rows");
+  var elKpis = document.getElementById("kpis");
+  var search = document.getElementById("search");
+  var elStatus = document.getElementById("status");
+
+  function num(v) {
+    v = Number(v);
+    if (v === Math.round(v)) return String(v);
+    return v.toFixed(2).replace(".", ",");
+  }
+  function chf(v) { return Math.round(v).toLocaleString("de-CH"); }
+  function status(a) {
+    if (a.bestand <= 0) return { cls:"crit", label:"Leer" };
+    if (a.bestand < a.mindestbestand) return { cls:"warn", label:"Niedrig" };
+    return { cls:"ok", label:"Auf Lager" };
+  }
+  var TYP_LABEL = { zugang:"Zugang", abgang:"Abgang", korrektur:"Korrektur", anfangsbestand:"Anfangsbestand" };
+  function fmtZeit(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d)) return iso;
+    var p = function (n) { return String(n).padStart(2, "0"); };
+    return p(d.getDate()) + "." + p(d.getMonth()+1) + "." + d.getFullYear() +
+           " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c];
+    });
+  }
+  function setOnline(ok) {
+    elStatus.classList.toggle("off", !ok);
+    elStatus.querySelector(".txt").textContent = ok ? "verbunden" : "keine Verbindung";
+  }
+
+  // --- API ---------------------------------------------------------------
+  function apiGet() {
+    return fetch("/api/state").then(function (r) { return r.json(); });
+  }
+  function apiPost(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().then(function (data) {
+        if (!r.ok) throw new Error(data && data.error ? data.error : "Fehler " + r.status);
+        return data;
+      });
+    });
+  }
+  function refresh() {
+    return apiGet().then(function (data) {
+      state = data; byNr = {};
+      state.artikel.forEach(function (a) { byNr[a.artikelnummer] = a; });
+      setOnline(true); renderAll();
+    }).catch(function () { setOnline(false); });
+  }
+  function applyState(data) {
+    state = data; byNr = {};
+    state.artikel.forEach(function (a) { byNr[a.artikelnummer] = a; });
+    setOnline(true); renderAll();
+  }
+
+  // --- Rendering ---------------------------------------------------------
+  function renderAll() { renderKpis(); renderRows(); renderJournal(); }
+  function renderKpis() {
+    var arts = state.artikel;
+    var warn = arts.filter(function (a) { return a.bestand < a.mindestbestand; }).length;
+    var wert = arts.reduce(function (s, a) { return s + a.bestand * a.einkaufspreis; }, 0);
+    elKpis.innerHTML =
+      kpi("Artikel", arts.length, "") +
+      kpi("Lagerwert", chf(wert), "CHF") +
+      kpi("Buchungen", state.journal.length, "") +
+      kpi("Warnungen", warn, "", warn > 0);
+  }
+  function kpi(label, val, unit, alert) {
+    return '<div class="kpi' + (alert ? ' alert' : '') + '"><div class="label">' + label +
+      '</div><div class="val">' + val + (unit ? ' <small>' + unit + '</small>' : '') + '</div></div>';
+  }
+  function renderRows() {
+    var q = search.value.trim().toLowerCase();
+    var list = state.artikel.filter(function (a) {
+      return !q || a.artikelnummer.toLowerCase().indexOf(q) >= 0 ||
+             a.bezeichnung.toLowerCase().indexOf(q) >= 0;
+    });
+    if (!list.length) {
+      elRows.innerHTML = '<tr><td colspan="6" class="empty">' +
+        (state.artikel.length ? 'Kein Artikel gefunden für „' + esc(search.value) + '“.'
+                              : 'Noch keine Artikel – lege oben den ersten an.') + '</td></tr>';
+      return;
+    }
+    elRows.innerHTML = list.map(function (a) {
+      var s = status(a);
+      return '<tr>' +
+        '<td><div class="bez">' + esc(a.bezeichnung) + '</div><div class="nummer">' + esc(a.artikelnummer) + '</div></td>' +
+        '<td class="num"><span class="bestand-val">' + num(a.bestand) + '</span> <span class="muted-cell">' + esc(a.einheit) + '</span></td>' +
+        '<td class="num muted-cell">' + num(a.mindestbestand) + '</td>' +
+        '<td class="num muted-cell">' + chf(a.bestand * a.einkaufspreis) + '</td>' +
+        '<td><span class="pill ' + s.cls + '">' + s.label + '</span></td>' +
+        '<td><div class="row-actions">' +
+          '<button class="btn mini in" data-in="' + esc(a.artikelnummer) + '">Zugang</button>' +
+          '<button class="btn mini out" data-out="' + esc(a.artikelnummer) + '">Abgang</button>' +
+        '</div></td></tr>';
+    }).join("");
+  }
+  function renderJournal() {
+    if (!state.journal.length) {
+      elJournal.innerHTML = '<tr><td colspan="5" class="empty">Noch keine Buchungen.</td></tr>';
+      return;
+    }
+    elJournal.innerHTML = state.journal.map(function (b) {
+      var plus = b.menge >= 0;
+      var signed = (plus ? "+" : "−") + num(Math.abs(b.menge));
+      return '<tr>' +
+        '<td class="muted-cell">' + esc(fmtZeit(b.gebucht_am)) + '</td>' +
+        '<td><span class="nummer">' + esc(b.artikelnummer) + '</span></td>' +
+        '<td><span class="typ ' + esc(b.typ) + '">' + (TYP_LABEL[b.typ] || esc(b.typ)) + '</span></td>' +
+        '<td class="num ' + (plus ? "delta-plus" : "delta-minus") + '">' + signed +
+          ' <span class="muted-cell">' + esc(b.einheit) + '</span></td>' +
+        '<td class="muted-cell">' + esc(b.beleg || "—") + '</td></tr>';
+    }).join("");
+  }
+
+  // --- Tabs --------------------------------------------------------------
+  var tabB = document.getElementById("tab-bestand"), tabJ = document.getElementById("tab-journal");
+  var viewB = document.getElementById("view-bestand"), viewJ = document.getElementById("view-journal");
+  function selectTab(b) {
+    tabB.setAttribute("aria-selected", b); tabJ.setAttribute("aria-selected", !b);
+    viewB.hidden = !b; viewJ.hidden = b;
+  }
+  tabB.addEventListener("click", function () { selectTab(true); });
+  tabJ.addEventListener("click", function () { selectTab(false); });
+
+  // --- Buchungs-Dialog ---------------------------------------------------
+  var dlg = document.getElementById("dlg-buchung");
+  var dlgTitel = document.getElementById("dlg-titel"), dlgSub = document.getElementById("dlg-sub");
+  var inMenge = document.getElementById("in-menge"), inBeleg = document.getElementById("in-beleg");
+  var inEinheit = document.getElementById("in-einheit"), dlgErr = document.getElementById("dlg-err");
+  var current = null, currentTyp = "zugang";
+
+  function openBuchung(nr, typ) {
+    current = byNr[nr]; currentTyp = typ;
+    if (!current) return;
+    dlgTitel.textContent = (typ === "zugang" ? "Zugang buchen" : "Abgang buchen");
+    dlgSub.textContent = current.bezeichnung + " · " + current.artikelnummer +
+      " · Bestand " + num(current.bestand) + " " + current.einheit;
+    inEinheit.textContent = "Einheit: " + current.einheit;
+    inMenge.value = ""; inBeleg.value = ""; dlgErr.textContent = "";
+    dlg.showModal();
+    setTimeout(function () { inMenge.focus(); }, 30);
+  }
+  dlg.addEventListener("close", function () {
+    if (dlg.returnValue !== "ok" || !current) return;
+    var menge = parseFloat(String(inMenge.value).replace(",", "."));
+    if (!(menge > 0)) return reopenBuchung("Bitte eine Menge größer als 0 eingeben.");
+    apiPost("/api/buchung", { nummer: current.artikelnummer, typ: currentTyp,
+                              menge: menge, beleg: inBeleg.value.trim() })
+      .then(applyState)
+      .catch(function (err) { reopenBuchung(err.message); });
+  });
+  function reopenBuchung(msg) { dlg.showModal(); dlgErr.textContent = msg;
+    setTimeout(function () { inMenge.focus(); }, 30); }
+
+  // --- Artikel-Dialog ----------------------------------------------------
+  var dlgA = document.getElementById("dlg-artikel");
+  var aErr = document.getElementById("a-err");
+  document.getElementById("btn-add").addEventListener("click", function () {
+    document.getElementById("a-nummer").value = "";
+    document.getElementById("a-bez").value = "";
+    document.getElementById("a-einheit").value = "m²";
+    document.getElementById("a-bestand").value = "0";
+    document.getElementById("a-min").value = "0";
+    document.getElementById("a-preis").value = "0";
+    aErr.textContent = "";
+    dlgA.showModal();
+    setTimeout(function () { document.getElementById("a-nummer").focus(); }, 30);
+  });
+  dlgA.addEventListener("close", function () {
+    if (dlgA.returnValue !== "ok") return;
+    var body = {
+      nummer: document.getElementById("a-nummer").value.trim(),
+      bezeichnung: document.getElementById("a-bez").value.trim(),
+      einheit: document.getElementById("a-einheit").value.trim() || "Stk",
+      bestand: parseFloat(document.getElementById("a-bestand").value.replace(",", ".")) || 0,
+      mindestbestand: parseFloat(document.getElementById("a-min").value.replace(",", ".")) || 0,
+      preis: parseFloat(document.getElementById("a-preis").value.replace(",", ".")) || 0
+    };
+    if (!body.nummer || !body.bezeichnung)
+      return reopenA("Artikelnummer und Bezeichnung sind Pflichtfelder.");
+    apiPost("/api/artikel", body).then(applyState)
+      .catch(function (err) { reopenA(err.message); });
+  });
+  function reopenA(msg) { dlgA.showModal(); aErr.textContent = msg; }
+
+  // --- Events ------------------------------------------------------------
+  elRows.addEventListener("click", function (e) {
+    var i = e.target.closest("[data-in]"), o = e.target.closest("[data-out]");
+    if (i) openBuchung(i.getAttribute("data-in"), "zugang");
+    else if (o) openBuchung(o.getAttribute("data-out"), "abgang");
+  });
+  search.addEventListener("input", renderRows);
+
+  refresh();
+  setInterval(refresh, 15000); // alle 15s andere Geräte-Änderungen nachladen
+})();
+</script>
+</body>
+</html>

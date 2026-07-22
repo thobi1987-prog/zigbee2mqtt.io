@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS artikel (
     einheit        TEXT    NOT NULL DEFAULT 'Stück',
     bestand        REAL    NOT NULL DEFAULT 0,
     mindestbestand REAL    NOT NULL DEFAULT 0,
+    einkaufspreis  REAL    NOT NULL DEFAULT 0,
     aktiv          INTEGER NOT NULL DEFAULT 1,
     erstellt_am    TEXT    NOT NULL,
     geaendert_am   TEXT    NOT NULL
@@ -72,7 +73,16 @@ def connect():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn):
+    """Leichte Migrationen für bestehende Datenbanken (fehlende Spalten ergänzen)."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(artikel)")}
+    if "einkaufspreis" not in cols:
+        conn.execute("ALTER TABLE artikel ADD COLUMN einkaufspreis REAL NOT NULL DEFAULT 0")
+        conn.commit()
 
 
 def _find(conn, nummer):
@@ -120,10 +130,10 @@ def cmd_add(args):
         cur = conn.execute(
             """INSERT INTO artikel
                (artikelnummer, bezeichnung, beschreibung, einheit, bestand,
-                mindestbestand, aktiv, erstellt_am, geaendert_am)
-               VALUES (?, ?, ?, ?, 0, ?, 1, ?, ?)""",
+                mindestbestand, einkaufspreis, aktiv, erstellt_am, geaendert_am)
+               VALUES (?, ?, ?, ?, 0, ?, ?, 1, ?, ?)""",
             (args.nummer, args.bezeichnung, args.beschreibung, args.einheit,
-             args.mindestbestand, ts, ts),
+             args.mindestbestand, args.preis, ts, ts),
         )
     except sqlite3.IntegrityError:
         print(f"Fehler: Artikelnummer '{args.nummer}' existiert bereits.", file=sys.stderr)
@@ -182,6 +192,8 @@ def cmd_show(args):
     print(f"Einheit       : {r['einheit']}")
     print(f"Bestand       : {_num(r['bestand'])}")
     print(f"Mindestbestand: {_num(r['mindestbestand'])}")
+    print(f"Einkaufspreis : {_num(r['einkaufspreis'])}")
+    print(f"Lagerwert     : {_num(r['bestand'] * r['einkaufspreis'])}")
     print(f"Aktiv         : {'ja' if r['aktiv'] else 'nein'}")
     print(f"Erstellt      : {r['erstellt_am']}")
     print(f"Geändert      : {r['geaendert_am']}")
@@ -378,6 +390,7 @@ def build_parser():
     a.add_argument("--einheit", default="Stück")
     a.add_argument("--bestand", type=float, default=0, help="Anfangsbestand (als Buchung erfasst)")
     a.add_argument("--mindestbestand", type=float, default=0)
+    a.add_argument("--preis", type=float, default=0, help="Einkaufspreis je Einheit (für Lagerwert)")
     a.set_defaults(func=cmd_add)
 
     l = sub.add_parser("list", help="Artikel auflisten")

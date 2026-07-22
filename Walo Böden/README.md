@@ -61,10 +61,30 @@ Hilfe zu jedem Befehl: `python3 inventar.py <befehl> --help`
 Alle Daten liegen in `inventar.db` (SQLite) im selben Ordner. Diese Datei wird
 **nicht** ins Git eingecheckt (siehe `.gitignore`) und bleibt lokal.
 
+## Weboberfläche (Server)
+
+Neben der Kommandozeile gibt es eine grafische Weboberfläche, die alle Geräte im
+Netzwerk nutzen können. Der Server braucht **keine Zusatzpakete** (nur Python 3):
+
+```bash
+cd "Walo Böden"
+python3 server.py            # dann http://<ip>:8000 im Browser öffnen
+```
+
+- `server.py` – Webserver (Python-Bordmittel) mit JSON-API
+- `static/index.html` – die Weboberfläche
+- greift auf **dieselbe** `inventar.db` zu wie das CLI
+
+Für den Dauerbetrieb auf einem **Raspberry Pi** (inkl. Autostart) siehe
+[INSTALL-RASPBERRY-PI.md](./INSTALL-RASPBERRY-PI.md).
+
+Eine reine Design-Vorschau (ohne Server, Daten nur im Browser) ist
+`weboberflaeche-demo.html`.
+
 ## Nächste Ausbaustufen
 
-- **Stufe 3:** Bestandsbewertung (FIFO/Durchschnitt), Lagerwert (Preis ist im
-  Journal bereits erfassbar).
+- **Stufe 3:** Bestandsbewertung (FIFO/Durchschnitt), Lagerwert (Einkaufspreis
+  ist bereits erfasst; einfacher Lagerwert wird schon angezeigt).
 - **Stufe 4:** Auswertungen/Export (Mindestbestand-Report, Inventurliste, CSV/PDF).
 
 Siehe [KONZEPT.md, Abschnitt 6](./KONZEPT.md).
