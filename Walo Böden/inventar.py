@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Walo Böden – Lagerbuchhaltung / Inventar (Stufe 1).
+"""Walo Böden – Lagerbuchhaltung / Inventar (Stufe 1 + 2).
 
-Einfaches Inventarsystem für Artikelstammdaten und Bestände.
+Inventarsystem für Artikelstammdaten, Bestände und Buchungen.
 Speicherung in einer lokalen SQLite-Datei (inventar.db), kein Server nötig.
+
+Prinzip (Stufe 2): Der Bestand wird nicht mehr frei gesetzt, sondern ergibt
+sich aus allen Buchungen (Zugang +, Abgang −, Korrektur ±, Anfangsbestand).
+Jede Bewegung wird im Journal festgehalten. Die Spalte artikel.bestand ist der
+laufende Saldo und wird bei jeder Buchung in derselben Transaktion fortgeschrieben.
 
 Verwendung (Beispiele):
     python3 inventar.py init
     python3 inventar.py add --nummer A-100 --bezeichnung "Parkett Eiche" --einheit m2 --bestand 50
+    python3 inventar.py zugang A-100 20 --beleg LS-2026-001
+    python3 inventar.py abgang A-100 8  --beleg AB-4711
+    python3 inventar.py journal A-100
     python3 inventar.py list
-    python3 inventar.py show A-100
-    python3 inventar.py set-bestand A-100 42
-    python3 inventar.py edit A-100 --bezeichnung "Parkett Eiche natur"
-    python3 inventar.py deactivate A-100
 """
 
 import argparse
@@ -35,7 +39,28 @@ CREATE TABLE IF NOT EXISTS artikel (
     erstellt_am    TEXT    NOT NULL,
     geaendert_am   TEXT    NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS buchung (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    artikel_id  INTEGER NOT NULL REFERENCES artikel(id) ON DELETE CASCADE,
+    typ         TEXT    NOT NULL,   -- anfangsbestand | zugang | abgang | korrektur
+    menge       REAL    NOT NULL,   -- vorzeichenbehaftet: Zugang +, Abgang −
+    preis       REAL,               -- optionaler Einzelpreis (für spätere Bewertung)
+    beleg       TEXT,               -- optionale Referenz (Lieferschein, Auftrag …)
+    bemerkung   TEXT,
+    gebucht_am  TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_buchung_artikel ON buchung(artikel_id);
 """
+
+# Für welche typ-Werte gibt der Nutzer eine positive Menge an, die abgezogen wird
+TYP_LABELS = {
+    "anfangsbestand": "Anfangsbestand",
+    "zugang": "Zugang",
+    "abgang": "Abgang",
+    "korrektur": "Korrektur",
+}
 
 
 def now():
@@ -46,37 +71,8 @@ def connect():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
-
-
-def cmd_init(args):
-    conn = connect()
     conn.executescript(SCHEMA)
-    conn.commit()
-    conn.close()
-    print(f"Datenbank bereit: {DB_PATH}")
-
-
-def cmd_add(args):
-    ts = now()
-    conn = connect()
-    conn.executescript(SCHEMA)  # sicherstellen, dass Tabelle existiert
-    try:
-        conn.execute(
-            """INSERT INTO artikel
-               (artikelnummer, bezeichnung, beschreibung, einheit, bestand,
-                mindestbestand, aktiv, erstellt_am, geaendert_am)
-               VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)""",
-            (args.nummer, args.bezeichnung, args.beschreibung, args.einheit,
-             args.bestand, args.mindestbestand, ts, ts),
-        )
-        conn.commit()
-    except sqlite3.IntegrityError:
-        print(f"Fehler: Artikelnummer '{args.nummer}' existiert bereits.", file=sys.stderr)
-        conn.close()
-        sys.exit(1)
-    conn.close()
-    print(f"Artikel '{args.nummer}' angelegt.")
+    return conn
 
 
 def _find(conn, nummer):
@@ -85,12 +81,70 @@ def _find(conn, nummer):
     ).fetchone()
 
 
+def _num(value):
+    """Zeigt ganze Zahlen ohne Nachkommastellen, sonst mit zwei Stellen."""
+    if value == int(value):
+        return str(int(value))
+    return f"{value:.2f}"
+
+
+def _post_buchung(conn, artikel, typ, menge_signed, preis=None, beleg=None,
+                  bemerkung=None, datum=None):
+    """Bucht eine Bewegung und schreibt den Saldo in derselben Transaktion fort."""
+    ts = datum or now()
+    conn.execute(
+        """INSERT INTO buchung
+           (artikel_id, typ, menge, preis, beleg, bemerkung, gebucht_am)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (artikel["id"], typ, menge_signed, preis, beleg, bemerkung, ts),
+    )
+    conn.execute(
+        "UPDATE artikel SET bestand = bestand + ?, geaendert_am = ? WHERE id = ?",
+        (menge_signed, ts, artikel["id"]),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Stammdaten-Befehle
+# --------------------------------------------------------------------------- #
+
+def cmd_init(args):
+    connect().close()
+    print(f"Datenbank bereit: {DB_PATH}")
+
+
+def cmd_add(args):
+    ts = now()
+    conn = connect()
+    try:
+        cur = conn.execute(
+            """INSERT INTO artikel
+               (artikelnummer, bezeichnung, beschreibung, einheit, bestand,
+                mindestbestand, aktiv, erstellt_am, geaendert_am)
+               VALUES (?, ?, ?, ?, 0, ?, 1, ?, ?)""",
+            (args.nummer, args.bezeichnung, args.beschreibung, args.einheit,
+             args.mindestbestand, ts, ts),
+        )
+    except sqlite3.IntegrityError:
+        print(f"Fehler: Artikelnummer '{args.nummer}' existiert bereits.", file=sys.stderr)
+        conn.close()
+        sys.exit(1)
+
+    # Startbestand als saubere Buchung erfassen (statt Feld direkt zu setzen)
+    if args.bestand:
+        artikel = conn.execute("SELECT * FROM artikel WHERE id = ?", (cur.lastrowid,)).fetchone()
+        _post_buchung(conn, artikel, "anfangsbestand", float(args.bestand),
+                      bemerkung="Anfangsbestand bei Anlage")
+    conn.commit()
+    conn.close()
+    print(f"Artikel '{args.nummer}' angelegt"
+          + (f" (Anfangsbestand {_num(args.bestand)})." if args.bestand else "."))
+
+
 def cmd_list(args):
     conn = connect()
-    conn.executescript(SCHEMA)
     query = "SELECT * FROM artikel"
-    params = []
-    conds = []
+    params, conds = [], []
     if not args.alle:
         conds.append("aktiv = 1")
     if args.suche:
@@ -117,7 +171,6 @@ def cmd_list(args):
 
 def cmd_show(args):
     conn = connect()
-    conn.executescript(SCHEMA)
     r = _find(conn, args.nummer)
     conn.close()
     if not r:
@@ -136,7 +189,6 @@ def cmd_show(args):
 
 def cmd_edit(args):
     conn = connect()
-    conn.executescript(SCHEMA)
     r = _find(conn, args.nummer)
     if not r:
         print(f"Artikel '{args.nummer}' nicht gefunden.", file=sys.stderr)
@@ -157,29 +209,11 @@ def cmd_edit(args):
         conn.close()
         return
     updates.append("geaendert_am = ?")
-    params.append(now())
-    params.append(args.nummer)
+    params += [now(), args.nummer]
     conn.execute(f"UPDATE artikel SET {', '.join(updates)} WHERE artikelnummer = ?", params)
     conn.commit()
     conn.close()
     print(f"Artikel '{args.nummer}' aktualisiert.")
-
-
-def cmd_set_bestand(args):
-    conn = connect()
-    conn.executescript(SCHEMA)
-    r = _find(conn, args.nummer)
-    if not r:
-        print(f"Artikel '{args.nummer}' nicht gefunden.", file=sys.stderr)
-        conn.close()
-        sys.exit(1)
-    conn.execute(
-        "UPDATE artikel SET bestand = ?, geaendert_am = ? WHERE artikelnummer = ?",
-        (args.menge, now(), args.nummer),
-    )
-    conn.commit()
-    conn.close()
-    print(f"Bestand von '{args.nummer}' auf {_num(args.menge)} gesetzt.")
 
 
 def cmd_deactivate(args):
@@ -192,7 +226,6 @@ def cmd_activate(args):
 
 def _set_aktiv(nummer, aktiv):
     conn = connect()
-    conn.executescript(SCHEMA)
     r = _find(conn, nummer)
     if not r:
         print(f"Artikel '{nummer}' nicht gefunden.", file=sys.stderr)
@@ -207,16 +240,132 @@ def _set_aktiv(nummer, aktiv):
     print(f"Artikel '{nummer}' {'aktiviert' if aktiv else 'deaktiviert'}.")
 
 
-def _num(value):
-    """Zeigt ganze Zahlen ohne Nachkommastellen, sonst mit."""
-    if value == int(value):
-        return str(int(value))
-    return f"{value:.2f}"
+# --------------------------------------------------------------------------- #
+# Buchungs-Befehle (Stufe 2)
+# --------------------------------------------------------------------------- #
 
+def _buchen(nummer, typ, menge_positiv, preis, beleg, bemerkung, erlaube_negativ=False):
+    if menge_positiv <= 0:
+        print("Fehler: Menge muss größer als 0 sein.", file=sys.stderr)
+        sys.exit(1)
+    conn = connect()
+    artikel = _find(conn, nummer)
+    if not artikel:
+        print(f"Artikel '{nummer}' nicht gefunden.", file=sys.stderr)
+        conn.close()
+        sys.exit(1)
+
+    signed = menge_positiv if typ == "zugang" else -menge_positiv
+    neuer_bestand = artikel["bestand"] + signed
+    if signed < 0 and neuer_bestand < 0 and not erlaube_negativ:
+        print(f"Fehler: Abgang von {_num(menge_positiv)} nicht möglich – "
+              f"Bestand ist nur {_num(artikel['bestand'])} "
+              f"(würde {_num(neuer_bestand)} ergeben). "
+              f"Mit --erlaube-negativ trotzdem buchen.", file=sys.stderr)
+        conn.close()
+        sys.exit(1)
+
+    _post_buchung(conn, artikel, typ, signed, preis, beleg, bemerkung)
+    conn.commit()
+    conn.close()
+    print(f"{TYP_LABELS[typ]} {_num(menge_positiv)} auf '{nummer}' gebucht. "
+          f"Neuer Bestand: {_num(neuer_bestand)}.")
+
+
+def cmd_zugang(args):
+    _buchen(args.nummer, "zugang", args.menge, args.preis, args.beleg, args.bemerkung)
+
+
+def cmd_abgang(args):
+    _buchen(args.nummer, "abgang", args.menge, args.preis, args.beleg,
+            args.bemerkung, erlaube_negativ=args.erlaube_negativ)
+
+
+def cmd_korrektur(args):
+    """Setzt den Bestand per Korrektur-Buchung auf einen Zielwert."""
+    conn = connect()
+    artikel = _find(conn, args.nummer)
+    if not artikel:
+        print(f"Artikel '{args.nummer}' nicht gefunden.", file=sys.stderr)
+        conn.close()
+        sys.exit(1)
+    delta = args.zielbestand - artikel["bestand"]
+    if delta == 0:
+        print(f"Bestand ist bereits {_num(args.zielbestand)} – keine Korrektur nötig.")
+        conn.close()
+        return
+    _post_buchung(conn, artikel, "korrektur", delta, beleg=args.beleg,
+                  bemerkung=args.bemerkung or "Bestandskorrektur / Inventur")
+    conn.commit()
+    conn.close()
+    vorz = "+" if delta > 0 else ""
+    print(f"Korrektur {vorz}{_num(delta)} auf '{args.nummer}' gebucht. "
+          f"Neuer Bestand: {_num(args.zielbestand)}.")
+
+
+def cmd_journal(args):
+    conn = connect()
+    params = []
+    query = """SELECT b.*, a.artikelnummer, a.einheit
+               FROM buchung b JOIN artikel a ON a.id = b.artikel_id"""
+    if args.nummer:
+        artikel = _find(conn, args.nummer)
+        if not artikel:
+            print(f"Artikel '{args.nummer}' nicht gefunden.", file=sys.stderr)
+            conn.close()
+            sys.exit(1)
+        query += " WHERE b.artikel_id = ?"
+        params.append(artikel["id"])
+    query += " ORDER BY b.gebucht_am, b.id"
+    if args.limit:
+        query += " LIMIT ?"
+        params.append(args.limit)
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+
+    if not rows:
+        print("Keine Buchungen gefunden.")
+        return
+
+    print(f"{'Datum':<20} {'Artikel':<10} {'Typ':<14} {'Menge':>10} {'Beleg':<14}")
+    print("-" * 74)
+    for r in rows:
+        menge = _num(r["menge"])
+        if r["menge"] > 0:
+            menge = "+" + menge
+        print(f"{r['gebucht_am']:<20} {r['artikelnummer']:<10} "
+              f"{TYP_LABELS.get(r['typ'], r['typ']):<14} {menge:>10} {r['beleg'] or '':<14}")
+
+
+def cmd_neu_berechnen(args):
+    """Rechnet den Bestand aller Artikel neu aus dem Journal (Konsistenzprüfung)."""
+    conn = connect()
+    artikel = conn.execute("SELECT * FROM artikel").fetchall()
+    korrigiert = 0
+    for a in artikel:
+        summe = conn.execute(
+            "SELECT COALESCE(SUM(menge), 0) AS s FROM buchung WHERE artikel_id = ?",
+            (a["id"],),
+        ).fetchone()["s"]
+        if summe != a["bestand"]:
+            print(f"  {a['artikelnummer']}: {_num(a['bestand'])} → {_num(summe)}")
+            conn.execute("UPDATE artikel SET bestand = ? WHERE id = ?", (summe, a["id"]))
+            korrigiert += 1
+    conn.commit()
+    conn.close()
+    if korrigiert:
+        print(f"{korrigiert} Bestand/Bestände aus dem Journal korrigiert.")
+    else:
+        print("Alle Bestände stimmen mit dem Journal überein.")
+
+
+# --------------------------------------------------------------------------- #
+# CLI
+# --------------------------------------------------------------------------- #
 
 def build_parser():
     p = argparse.ArgumentParser(
-        description="Walo Böden – Inventar (Artikelstammdaten & Bestände)."
+        description="Walo Böden – Inventar (Artikelstammdaten, Bestände & Buchungen)."
     )
     sub = p.add_subparsers(dest="command", required=True)
 
@@ -227,7 +376,7 @@ def build_parser():
     a.add_argument("--bezeichnung", required=True)
     a.add_argument("--beschreibung", default=None)
     a.add_argument("--einheit", default="Stück")
-    a.add_argument("--bestand", type=float, default=0)
+    a.add_argument("--bestand", type=float, default=0, help="Anfangsbestand (als Buchung erfasst)")
     a.add_argument("--mindestbestand", type=float, default=0)
     a.set_defaults(func=cmd_add)
 
@@ -248,11 +397,6 @@ def build_parser():
     e.add_argument("--mindestbestand", type=float, default=None)
     e.set_defaults(func=cmd_edit)
 
-    sb = sub.add_parser("set-bestand", help="Bestand direkt setzen")
-    sb.add_argument("nummer")
-    sb.add_argument("menge", type=float)
-    sb.set_defaults(func=cmd_set_bestand)
-
     d = sub.add_parser("deactivate", help="Artikel deaktivieren")
     d.add_argument("nummer")
     d.set_defaults(func=cmd_deactivate)
@@ -261,12 +405,46 @@ def build_parser():
     ac.add_argument("nummer")
     ac.set_defaults(func=cmd_activate)
 
+    # --- Buchungen ---
+    z = sub.add_parser("zugang", help="Wareneingang buchen (Bestand +)")
+    z.add_argument("nummer")
+    z.add_argument("menge", type=float)
+    z.add_argument("--preis", type=float, default=None, help="Einzelpreis (optional)")
+    z.add_argument("--beleg", default=None, help="z.B. Lieferschein-Nr.")
+    z.add_argument("--bemerkung", default=None)
+    z.set_defaults(func=cmd_zugang)
+
+    ab = sub.add_parser("abgang", help="Warenausgang buchen (Bestand −)")
+    ab.add_argument("nummer")
+    ab.add_argument("menge", type=float)
+    ab.add_argument("--preis", type=float, default=None)
+    ab.add_argument("--beleg", default=None, help="z.B. Auftrags-Nr.")
+    ab.add_argument("--bemerkung", default=None)
+    ab.add_argument("--erlaube-negativ", action="store_true",
+                    help="Abgang auch zulassen, wenn der Bestand negativ würde")
+    ab.set_defaults(func=cmd_abgang)
+
+    k = sub.add_parser("korrektur", help="Bestand per Korrektur auf Zielwert setzen (Inventur)")
+    k.add_argument("nummer")
+    k.add_argument("zielbestand", type=float)
+    k.add_argument("--beleg", default=None)
+    k.add_argument("--bemerkung", default=None)
+    k.set_defaults(func=cmd_korrektur)
+
+    j = sub.add_parser("journal", help="Buchungen anzeigen (optional je Artikel)")
+    j.add_argument("nummer", nargs="?", default=None)
+    j.add_argument("--limit", type=int, default=None)
+    j.set_defaults(func=cmd_journal)
+
+    nb = sub.add_parser("neu-berechnen",
+                        help="Bestände aus dem Journal neu berechnen (Prüfung/Reparatur)")
+    nb.set_defaults(func=cmd_neu_berechnen)
+
     return p
 
 
 def main(argv=None):
-    parser = build_parser()
-    args = parser.parse_args(argv)
+    args = build_parser().parse_args(argv)
     args.func(args)
 
 
