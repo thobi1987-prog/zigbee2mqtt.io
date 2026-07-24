@@ -1,0 +1,17 @@
+[Unit]
+Description=Walo Böden - Lagerverwaltung (Webserver)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Benutzer anpassen, falls nicht "pi":
+User=pi
+# Pfad anpassen, falls die Dateien woanders liegen:
+WorkingDirectory=/home/pi/walo-boeden
+ExecStart=/usr/bin/python3 /home/pi/walo-boeden/server.py --port 8000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
