@@ -1,0 +1,613 @@
+<title>Dreiländereck im Bastelraum</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* Ein bewusst einthemiges Design: Abend im Hobbykeller. Alle Farben sind explizit gesetzt. */
+  :root {
+    --raum: #201d18;
+    --gras: #3a5a37;
+    --gras-hell: #476b41;
+    --schotter: #575049;
+    --schwelle: #6d5741;
+    --schiene: #cac2b2;
+    --holz: #5a4632;
+    --holz-dunkel: #46351f;
+    --beton: #45423c;
+    --wand: #8b8578;
+    --pult: #26302a;
+    --pult-tief: #1c241f;
+    --elfenbein: #e9e2cf;
+    --elfenbein-gedimmt: #b8b1a0;
+    --messing: #cfa14e;
+    --lokrot: #a83226;
+    --display: "Arial Narrow", "Helvetica Neue Condensed", "Liberation Sans Narrow", Arial, sans-serif;
+    --body: Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Liberation Mono", Menlo, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--raum); }
+  body {
+    font-family: var(--body);
+    color: var(--elfenbein);
+    line-height: 1.55;
+    padding: 48px 20px 64px;
+    background:
+      radial-gradient(1100px 500px at 50% -80px, #2b2720 0%, var(--raum) 60%);
+  }
+  main { max-width: 1020px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 30px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--messing);
+    margin-bottom: 14px;
+  }
+  .schild {
+    display: inline-block;
+    background: #24382b;
+    border: 3px solid var(--elfenbein);
+    outline: 2px solid #24382b;
+    border-radius: 6px;
+    padding: 10px 34px 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(28px, 5vw, 48px);
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--elfenbein);
+    text-wrap: balance;
+    line-height: 1.05;
+  }
+  .untertitel {
+    max-width: 62ch;
+    margin: 18px auto 0;
+    color: var(--elfenbein-gedimmt);
+    font-size: 17px;
+    font-style: italic;
+  }
+
+  .anlage {
+    background: var(--holz-dunkel);
+    border-radius: 20px;
+    padding: 10px;
+    box-shadow: 0 18px 40px rgba(0,0,0,.5);
+  }
+  .anlage svg { display: block; width: 100%; height: auto; border-radius: 12px; }
+
+  .stellwerk {
+    margin-top: 22px;
+    background: linear-gradient(#2a352e, var(--pult));
+    border: 1px solid #3b473f;
+    border-radius: 14px;
+    padding: 20px 26px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 26px 40px;
+    justify-content: center;
+    align-items: stretch;
+    box-shadow: 0 10px 26px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07);
+  }
+  .ctrl { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .ctrl > .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--messing);
+  }
+  .knopfreihe {
+    display: flex;
+    border: 1px solid #4a564d;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--pult-tief);
+  }
+  .knopfreihe button {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: .08em;
+    padding: 9px 18px;
+    border: 0;
+    background: transparent;
+    color: var(--elfenbein-gedimmt);
+    cursor: pointer;
+  }
+  .knopfreihe button + button { border-left: 1px solid #4a564d; }
+  .knopfreihe button[aria-pressed="true"] {
+    background: var(--elfenbein);
+    color: #22301f;
+    font-weight: 700;
+  }
+  .knopfreihe button:focus-visible,
+  input[type=range]:focus-visible {
+    outline: 2px solid var(--messing);
+    outline-offset: 2px;
+  }
+  .regler { min-width: 240px; }
+  .reglerzeile { display: flex; align-items: center; gap: 14px; width: 100%; }
+  input[type=range] {
+    flex: 1;
+    accent-color: var(--messing);
+    height: 26px;
+  }
+  #tacho {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 15px;
+    color: var(--elfenbein);
+    background: #141a16;
+    border: 1px solid #4a564d;
+    border-radius: 6px;
+    padding: 5px 10px;
+    min-width: 96px;
+    text-align: right;
+  }
+
+  .notizen {
+    margin: 26px auto 0;
+    max-width: 74ch;
+    background: #262319;
+    border: 1px solid #3a362b;
+    border-radius: 12px;
+    padding: 18px 24px;
+  }
+  .notizen h2 {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--messing);
+    margin-bottom: 10px;
+  }
+  .notizen ul { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .notizen li { padding-left: 20px; position: relative; color: var(--elfenbein-gedimmt); font-size: 15.5px; }
+  .notizen li::before { content: "▸"; position: absolute; left: 0; color: var(--messing); }
+  .notizen strong { color: var(--elfenbein); font-weight: 600; }
+  .spez table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .spez th, .spez td { text-align: left; padding: 7px 10px 7px 0; vertical-align: top; border-bottom: 1px solid #3a362b; }
+  .spez tr:last-child th, .spez tr:last-child td { border-bottom: 0; }
+  .spez th { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; color: var(--messing); font-weight: 500; white-space: nowrap; padding-right: 18px; }
+  .spez td { color: var(--elfenbein-gedimmt); }
+  .fussnote {
+    margin: 22px auto 0;
+    max-width: 62ch;
+    text-align: center;
+    color: #8f897b;
+    font-size: 14.5px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .knopfreihe button, #daylight, .glowset { transition: all .35s ease; }
+  }
+</style>
+
+<main>
+  <header>
+    <p class="eyebrow">Spur H0 · Märklin C-Gleis · UG 0.1 Bastelraum</p>
+    <div class="schild"><h1>Dreiländereck im Bastelraum</h1></div>
+    <p class="untertitel">Gleisplan v2 nach dem Vorbild des MMC-Dreiländerecks (DB/ÖBB/SBB): U-Form mit 130/140&nbsp;cm tiefen Schenkeln, doppelgleisige Hauptbahn, zwei Bahnhöfe, zwei Schattenbahnhöfe und vier Brücken&nbsp;— auf die Raummaße 4,86 × 4,36&nbsp;m gestreckt.</p>
+  </header>
+
+  <figure class="anlage" aria-label="Maßstäbliche Draufsicht des Bastelraums mit U-förmiger Dreiländereck-Anlage: doppelgleisige Hauptbahn um den Bedienerraum, zwei Bahnhöfe, zwei Schattenbahnhöfe, zwei Flussläufe mit vier Brücken und Tunnelberge in beiden Nordecken.">
+    <svg id="szene" viewBox="0 0 1000 920" role="img">
+      <defs>
+        <filter id="soft" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="5"/>
+        </filter>
+        <radialGradient id="lampe" r="50%">
+          <stop offset="0%" stop-color="#ffe9a3" stop-opacity=".9"/>
+          <stop offset="100%" stop-color="#ffe9a3" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <!-- Maßketten -->
+      <g stroke="#7a766a" stroke-width="1" fill="none">
+        <line x1="60" y1="22" x2="935" y2="22"/>
+        <line x1="60" y1="16" x2="60" y2="28"/><line x1="935" y1="16" x2="935" y2="28"/>
+        <line x1="14" y1="60" x2="14" y2="845"/>
+        <line x1="8" y1="60" x2="20" y2="60"/><line x1="8" y1="845" x2="20" y2="845"/>
+      </g>
+      <g font-family="ui-monospace, Menlo, monospace" font-size="15" fill="#a49e8e">
+        <text x="497" y="14" text-anchor="middle">4,86</text>
+        <text x="-452" y="10" text-anchor="middle" transform="rotate(-90)">4,36</text>
+      </g>
+
+      <!-- Betonboden -->
+      <rect x="36" y="36" width="923" height="833" fill="var(--beton)"/>
+
+      <!-- Wände -->
+      <g fill="var(--wand)">
+        <rect x="36" y="36" width="923" height="24"/>
+        <rect x="36" y="36" width="24" height="833"/>
+        <rect x="935" y="36" width="24" height="833"/>
+        <rect x="36" y="845" width="426" height="24"/>
+        <rect x="674" y="845" width="261" height="24"/>
+      </g>
+
+      <!-- Anlagenplatte in U-Form: Basis + zwei Schenkel (130/140 cm tief) -->
+      <path d="M 60,60 H 935 V 780 H 683 V 308 Q 683,294 669,294 H 308 Q 294,294 294,308 V 780 H 60 Z"
+            fill="var(--gras)" stroke="var(--holz)" stroke-width="9" stroke-linejoin="round"/>
+      <ellipse cx="250" cy="180" rx="150" ry="70" fill="var(--gras-hell)" opacity=".35"/>
+      <ellipse cx="800" cy="500" rx="70" ry="130" fill="var(--gras-hell)" opacity=".3"/>
+      <ellipse cx="180" cy="500" rx="60" ry="120" fill="var(--gras-hell)" opacity=".3"/>
+
+      <!-- Panoramakulisse an Nord-, West- und Ostwand -->
+      <rect x="60" y="60" width="875" height="8" fill="#7fa3b3"/>
+      <rect x="60" y="60" width="8" height="720" fill="#7fa3b3"/>
+      <rect x="927" y="60" width="8" height="720" fill="#7fa3b3"/>
+
+      <!-- Flusslauf West (2 Brücken) -->
+      <path d="M 60,470 C 120,480 155,520 166,580 C 176,640 174,700 172,780" fill="none" stroke="#4a6d80" stroke-width="16"/>
+      <path d="M 60,470 C 120,480 155,520 166,580 C 176,640 174,700 172,780" fill="none" stroke="#5a7d90" stroke-width="7" opacity=".8"/>
+      <!-- Flusslauf Ost (2 Brücken) -->
+      <path d="M 935,380 C 860,390 805,420 793,470 C 782,520 792,560 772,610 C 757,650 750,700 748,780" fill="none" stroke="#4a6d80" stroke-width="16"/>
+      <path d="M 935,380 C 860,390 805,420 793,470 C 782,520 792,560 772,610 C 757,650 750,700 748,780" fill="none" stroke="#5a7d90" stroke-width="7" opacity=".8"/>
+
+      <!-- Hauptstrecke: doppelgleisiger Ring um den Bedienerraum -->
+      <g>
+        <path id="gleis" d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 652 A 65 65 0 0 1 807,717 H 685 A 65 65 0 0 1 620,652 V 422 A 65 65 0 0 0 555,357 H 422 A 65 65 0 0 0 357,422 V 652 A 65 65 0 0 1 292,717 H 188 A 65 65 0 0 1 123,652 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schotter)" stroke-width="42"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 652 A 65 65 0 0 1 807,717 H 685 A 65 65 0 0 1 620,652 V 422 A 65 65 0 0 0 555,357 H 422 A 65 65 0 0 0 357,422 V 652 A 65 65 0 0 1 292,717 H 188 A 65 65 0 0 1 123,652 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schwelle)" stroke-width="36" stroke-dasharray="4 10"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 652 A 65 65 0 0 1 807,717 H 685 A 65 65 0 0 1 620,652 V 422 A 65 65 0 0 0 555,357 H 422 A 65 65 0 0 0 357,422 V 652 A 65 65 0 0 1 292,717 H 188 A 65 65 0 0 1 123,652 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schiene)" stroke-width="26"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 652 A 65 65 0 0 1 807,717 H 685 A 65 65 0 0 1 620,652 V 422 A 65 65 0 0 0 555,357 H 422 A 65 65 0 0 0 357,422 V 652 A 65 65 0 0 1 292,717 H 188 A 65 65 0 0 1 123,652 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schotter)" stroke-width="22"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 652 A 65 65 0 0 1 807,717 H 685 A 65 65 0 0 1 620,652 V 422 A 65 65 0 0 0 555,357 H 422 A 65 65 0 0 0 357,422 V 652 A 65 65 0 0 1 292,717 H 188 A 65 65 0 0 1 123,652 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schwelle)" stroke-width="16" stroke-dasharray="4 10"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 652 A 65 65 0 0 1 807,717 H 685 A 65 65 0 0 1 620,652 V 422 A 65 65 0 0 0 555,357 H 422 A 65 65 0 0 0 357,422 V 652 A 65 65 0 0 1 292,717 H 188 A 65 65 0 0 1 123,652 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schiene)" stroke-width="10"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 652 A 65 65 0 0 1 807,717 H 685 A 65 65 0 0 1 620,652 V 422 A 65 65 0 0 0 555,357 H 422 A 65 65 0 0 0 357,422 V 652 A 65 65 0 0 1 292,717 H 188 A 65 65 0 0 1 123,652 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schotter)" stroke-width="6"/>
+      </g>
+
+      <!-- Brückenlager der vier Viadukte -->
+      <g fill="#7d7469">
+        <rect x="96" y="450" width="6" height="44"/>
+        <rect x="144" y="450" width="6" height="44"/>
+        <rect x="148" y="690" width="48" height="6"/>
+        <rect x="148" y="740" width="48" height="6"/>
+        <rect x="846" y="362" width="6" height="44"/>
+        <rect x="892" y="362" width="6" height="44"/>
+        <rect x="726" y="690" width="48" height="6"/>
+        <rect x="726" y="740" width="48" height="6"/>
+      </g>
+      <text x="206" y="758" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#a49e8e">Viadukt</text>
+      <text x="700" y="672" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#a49e8e">Viadukt</text>
+
+      <!-- Schattenbahnhof 1 unter der Basis (Ebene -1) -->
+      <g>
+        <rect x="430" y="200" width="380" height="130" rx="10" fill="none" stroke="#c8bd9c" stroke-width="2" stroke-dasharray="8 7" opacity=".55"/>
+        <g stroke="#c8bd9c" stroke-width="3" stroke-dasharray="2 7" opacity=".35">
+          <line x1="448" y1="222" x2="792" y2="222"/>
+          <line x1="448" y1="243" x2="792" y2="243"/>
+          <line x1="448" y1="264" x2="792" y2="264"/>
+          <line x1="448" y1="285" x2="792" y2="285"/>
+          <line x1="448" y1="306" x2="792" y2="306"/>
+        </g>
+        <text x="620" y="272" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="13" letter-spacing="2" fill="#c8bd9c" opacity=".9">SBF 1 · EBENE −1</text>
+      </g>
+
+      <!-- Schattenbahnhof 2 im linken Schenkel (Ebene -2) -->
+      <g>
+        <rect x="200" y="430" width="140" height="210" rx="10" fill="none" stroke="#c8bd9c" stroke-width="2" stroke-dasharray="8 7" opacity=".55"/>
+        <g stroke="#c8bd9c" stroke-width="3" stroke-dasharray="2 7" opacity=".35">
+          <line x1="218" y1="445" x2="218" y2="625"/>
+          <line x1="240" y1="445" x2="240" y2="625"/>
+          <line x1="262" y1="445" x2="262" y2="625"/>
+          <line x1="284" y1="445" x2="284" y2="625"/>
+          <line x1="306" y1="445" x2="306" y2="625"/>
+          <line x1="328" y1="445" x2="328" y2="625"/>
+        </g>
+        <text x="270" y="662" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="13" letter-spacing="2" fill="#c8bd9c" opacity=".85">SBF 2 · EBENE −2</text>
+      </g>
+
+      <!-- Bahnhof Nord (DB) -->
+      <rect x="420" y="150" width="220" height="14" rx="4" fill="#8a8577"/>
+      <rect x="420" y="150" width="220" height="4" rx="2" fill="#a09b8c"/>
+      <g>
+        <rect x="470" y="174" width="120" height="44" rx="5" fill="#8c4a3a"/>
+        <rect x="470" y="192" width="120" height="5" fill="#6f382c"/>
+        <rect x="524" y="174" width="12" height="44" fill="#6f382c" opacity=".55"/>
+        <circle cx="576" cy="182" r="5" fill="#5a4632"/>
+      </g>
+
+      <!-- Bahnhof Ost (ÖBB) -->
+      <rect x="886" y="415" width="14" height="160" rx="4" fill="#8a8577"/>
+      <rect x="896" y="415" width="4" height="160" rx="2" fill="#a09b8c"/>
+      <g>
+        <rect x="800" y="420" width="44" height="80" rx="5" fill="#71767f"/>
+        <rect x="818" y="420" width="5" height="80" fill="#5a5f68"/>
+        <circle cx="808" cy="490" r="4" fill="#5a4632"/>
+      </g>
+
+      <!-- Regionen des Dreiländerecks -->
+      <g font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#c8bd9c" opacity=".7" letter-spacing="2">
+        <text x="262" y="218">DB</text>
+        <text x="726" y="548">ÖBB</text>
+        <text x="243" y="410">SBB</text>
+      </g>
+
+      <!-- Bäume -->
+      <g fill="#2c4a2c" stroke="#233c23" stroke-width="2">
+        <circle cx="250" cy="255" r="14"/><circle cx="283" cy="283" r="11"/>
+        <circle cx="170" cy="390" r="12"/>
+        <circle cx="705" cy="610" r="13"/><circle cx="735" cy="655" r="10"/>
+        <circle cx="758" cy="560" r="11"/>
+      </g>
+
+      <!-- Signal am Bahnsteigende Nord -->
+      <g>
+        <rect x="652" y="186" width="4" height="16" fill="#3b3733"/>
+        <rect x="647" y="168" width="14" height="18" rx="3" fill="#2b2825"/>
+        <circle id="lampRot" cx="654" cy="174" r="3.4" fill="#5a2a24"/>
+        <circle id="lampGruen" cx="654" cy="181" r="3.4" fill="#2c4a2c"/>
+      </g>
+
+      <!-- Züge -->
+      <g id="zug">
+        <g id="car3"><rect x="-28" y="-10" width="56" height="20" rx="4" fill="#6b4f3a"/><rect x="-28" y="-2" width="56" height="4" fill="#57402f"/><rect x="-30" y="-6" width="3" height="12" fill="#33302c"/></g>
+        <g id="car2"><rect x="-28" y="-10" width="56" height="20" rx="4" fill="#3f5f7a"/><rect x="-28" y="-2" width="56" height="4" fill="#324c62"/></g>
+        <g id="car1"><rect x="-28" y="-10" width="56" height="20" rx="4" fill="#3f5f7a"/><rect x="-28" y="-2" width="56" height="4" fill="#324c62"/></g>
+        <g id="car0">
+          <polygon points="-32,-11 22,-11 32,-4 32,4 22,11 -32,11" fill="var(--lokrot)"/>
+          <rect x="-32" y="-3" width="58" height="6" fill="#7e241b"/>
+          <rect x="-26" y="-8" width="14" height="16" rx="2" fill="#872a1f"/>
+          <circle cx="20" cy="0" r="3" fill="#3b3733"/>
+          <rect x="-34" y="-6" width="3" height="12" fill="#33302c"/>
+        </g>
+        <!-- Triebwagen auf dem Gegengleis -->
+        <g id="b1"><polygon points="-30,-10 24,-10 30,-4 30,4 24,10 -30,10" fill="#d8cfb4"/><rect x="-30" y="-2" width="56" height="4" fill="#b3452f"/></g>
+        <g id="b0"><polygon points="-30,-10 24,-10 30,-4 30,4 24,10 -30,10" fill="#b3452f"/><rect x="-30" y="-2" width="56" height="4" fill="#d8cfb4"/><circle cx="18" cy="0" r="3" fill="#3b3733"/></g>
+      </g>
+
+      <!-- Tunnelberg Nordwest (mit Gleiswendel zu den SBF) -->
+      <g>
+        <path d="M 92,330 C 84,200 96,98 230,92 C 296,89 330,102 336,132 C 344,170 302,178 262,196 C 204,222 148,262 128,330 Z"
+              fill="#4a6a44" stroke="#3c5738" stroke-width="3"/>
+        <path d="M 118,300 C 116,200 130,124 226,116 C 274,112 304,124 308,142 C 314,168 276,176 244,192 C 196,216 152,246 136,300 Z"
+              fill="#557a4d" opacity=".8"/>
+        <path d="M 150,250 C 156,186 186,148 234,140 C 262,136 282,142 284,152 C 288,168 258,176 232,190 C 198,208 168,222 158,250 Z"
+              fill="#628a58" opacity=".8"/>
+        <circle cx="180" cy="140" r="10" fill="#3c5738"/>
+        <circle cx="240" cy="118" r="8" fill="#3c5738"/>
+        <circle cx="130" cy="250" r="9" fill="#3c5738"/>
+        <circle cx="212" cy="170" r="7" fill="#436140"/>
+        <circle cx="304" cy="123" r="16" fill="#7d7469"/>
+        <circle cx="304" cy="123" r="12" fill="#2a2724"/>
+        <circle cx="123" cy="304" r="16" fill="#7d7469"/>
+        <circle cx="123" cy="304" r="12" fill="#2a2724"/>
+      </g>
+
+      <!-- Tunnelberg Nordost -->
+      <g>
+        <path d="M 908,330 C 916,200 904,98 770,92 C 704,89 670,102 664,132 C 656,170 698,178 738,196 C 796,222 852,262 872,330 Z"
+              fill="#4a6a44" stroke="#3c5738" stroke-width="3"/>
+        <path d="M 882,300 C 884,200 870,124 774,116 C 726,112 696,124 692,142 C 686,168 724,176 756,192 C 804,216 848,246 864,300 Z"
+              fill="#557a4d" opacity=".8"/>
+        <circle cx="820" cy="140" r="10" fill="#3c5738"/>
+        <circle cx="760" cy="118" r="8" fill="#3c5738"/>
+        <circle cx="696" cy="123" r="16" fill="#7d7469"/>
+        <circle cx="696" cy="123" r="12" fill="#2a2724"/>
+        <circle cx="872" cy="304" r="16" fill="#7d7469"/>
+        <circle cx="872" cy="304" r="12" fill="#2a2724"/>
+      </g>
+
+      <!-- Bedienerraum + Tür -->
+      <g font-family="ui-monospace, Menlo, monospace" fill="#a49e8e">
+        <text x="488" y="530" text-anchor="middle" font-size="14" letter-spacing="2">BEDIENERRAUM</text>
+        <line x1="568" y1="856" x2="568" y2="710" stroke="#a49e8e" stroke-width="2" stroke-dasharray="6 6"/>
+        <polygon points="568,700 561,716 575,716" fill="#a49e8e"/>
+        <text x="568" y="682" text-anchor="middle" font-size="15">Einstieg</text>
+        <text x="568" y="828" text-anchor="middle" font-size="13">Tür 1,18</text>
+      </g>
+
+      <!-- Nacht -->
+      <rect id="daylight" x="36" y="36" width="923" height="833" fill="#0b1424" opacity="0" pointer-events="none"/>
+      <g class="glowset" opacity="0" pointer-events="none">
+        <circle cx="450" cy="157" r="16" fill="url(#lampe)"/>
+        <circle cx="530" cy="157" r="16" fill="url(#lampe)"/>
+        <circle cx="610" cy="157" r="16" fill="url(#lampe)"/>
+        <circle cx="450" cy="157" r="2.4" fill="#ffe9a3"/>
+        <circle cx="530" cy="157" r="2.4" fill="#ffe9a3"/>
+        <circle cx="610" cy="157" r="2.4" fill="#ffe9a3"/>
+        <ellipse cx="500" cy="222" rx="26" ry="9" fill="#ffdf8e" opacity=".5" filter="url(#soft)"/>
+        <ellipse cx="562" cy="222" rx="26" ry="9" fill="#ffdf8e" opacity=".5" filter="url(#soft)"/>
+        <rect x="484" y="182" width="10" height="8" rx="2" fill="#ffdf8e" opacity=".85"/>
+        <rect x="552" y="182" width="10" height="8" rx="2" fill="#ffdf8e" opacity=".85"/>
+        <circle cx="893" cy="440" r="14" fill="url(#lampe)"/>
+        <circle cx="893" cy="550" r="14" fill="url(#lampe)"/>
+        <circle cx="893" cy="440" r="2.2" fill="#ffe9a3"/>
+        <circle cx="893" cy="550" r="2.2" fill="#ffe9a3"/>
+        <rect x="806" y="432" width="8" height="10" rx="2" fill="#ffdf8e" opacity=".85"/>
+        <rect x="806" y="470" width="8" height="10" rx="2" fill="#ffdf8e" opacity=".85"/>
+        <g id="beam"><polygon points="32,-4 116,-18 116,18 32,4" fill="#ffe9a3" opacity=".32" filter="url(#soft)"/></g>
+      </g>
+    </svg>
+  </figure>
+
+  <section class="stellwerk" aria-label="Stellwerk">
+    <div class="ctrl">
+      <span class="label">Signal Bahnhof Nord</span>
+      <div class="knopfreihe" role="group" aria-label="Signalstellung">
+        <button id="btnHalt" aria-pressed="false">Halt</button>
+        <button id="btnFahrt" aria-pressed="true">Fahrt</button>
+      </div>
+    </div>
+    <div class="ctrl regler">
+      <label class="label" for="fahrregler">Fahrregler</label>
+      <div class="reglerzeile">
+        <input id="fahrregler" type="range" min="0" max="100" value="55">
+        <output id="tacho" for="fahrregler">0 km/h</output>
+      </div>
+    </div>
+    <div class="ctrl">
+      <span class="label">Beleuchtung</span>
+      <div class="knopfreihe" role="group" aria-label="Beleuchtung">
+        <button id="btnTag" aria-pressed="true">Tag</button>
+        <button id="btnNacht" aria-pressed="false">Nacht</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="notizen spez" aria-label="Eckdaten">
+    <h2>Gleisplan v2 · Eckdaten</h2>
+    <table>
+      <tr><th>Gleisplan</th><td>„Dreiländereck im Bastelraum" (DB/ÖBB/SBB) — frei nach MMC GP4-0210</td></tr>
+      <tr><th>Thema</th><td>Doppelgleisige Hauptbahn mit 2 Bahnhöfen und 4 Brücken</td></tr>
+      <tr><th>Gleis</th><td>Märklin C-Gleis</td></tr>
+      <tr><th>Maße</th><td>ca. 486 × 400 cm (U-Form), Schenkeltiefe 130/140 cm — die MMC-Vorlage (400 × 350 × 400) auf die Raumbreite gestreckt</td></tr>
+      <tr><th>Grundfläche</th><td>ca. 13,6 m²</td></tr>
+      <tr><th>Hauptkreis</th><td>ca. 18,2 m je Richtung</td></tr>
+      <tr><th>Ebenen</th><td>5 — Hauptebene +105 cm, zwei Rampenebenen, SBF 1 auf +80 cm, SBF 2 auf +55 cm</td></tr>
+      <tr><th>SBF</th><td>2 Stück (unter der Basis und im linken Schenkel), gezeichnet 5 + 6 Gleise, ausbaubar</td></tr>
+      <tr><th>Mindestradius</th><td>36 cm (R1) im Entwurf — Ziel auf der Hauptbahn: 43 cm (R2)</td></tr>
+      <tr><th>Längster Zug</th><td>ca. 120 cm Bahnsteig — für längere Güterzüge SBF-1-Gleise über die volle Basis ziehen</td></tr>
+      <tr><th>Stromkreise</th><td>2 (Hauptbahn getrennt je Richtung), Blockstellen für Mehrzugbetrieb</td></tr>
+    </table>
+  </section>
+
+  <section class="notizen" aria-label="Planungsnotizen">
+    <h2>Planungsnotizen</h2>
+    <ul>
+      <li><strong>Schenkeltiefe 130/140 cm:</strong> Wie beim Original — und wie MMC selbst warnt: solche Tiefen brauchen Zugriff. An der Wand stehend heißt das Serviceluken in beiden Schenkeln, alternativ die ganze Anlage rollbar ausführen.</li>
+      <li><strong>Südkante:</strong> Zwischen Schenkelenden und Südwand bleiben nur ca. 35 cm — das ist kein Gang. Der Zugang läuft ausschließlich durch die Tür (1,18 m) in den Bedienerraum.</li>
+      <li><strong>Zwei Schattenbahnhöfe:</strong> SBF 1 unter der Basis, SBF 2 tiefer im linken Schenkel. Zufahrten über die Gleiswendel im Nordwest-Berg — deshalb liegt der Berg genau dort.</li>
+      <li><strong>Vier Brücken:</strong> Zwei Flussläufe queren die Schenkel — vier Viadukte als Blickfang an den Vorderkanten, das Markenzeichen der Vorlage.</li>
+      <li><strong>Dreiländereck-Motiv:</strong> DB auf der Basis, SBB im linken, ÖBB im rechten Schenkel — Fahrzeug- und Gebäudewahl je Region.</li>
+      <li><strong>Raumklima:</strong> Beide Räume sind Beton roh (FB −2,82) — vor dem Anlagenbau Boden versiegeln und auf Feuchte prüfen.</li>
+    </ul>
+  </section>
+
+  <section class="notizen" aria-label="Rahmenbau">
+    <h2>Rahmenbau · Offene Bauweise</h2>
+    <ul>
+      <li><strong>Material:</strong> Rahmen aus 15–20 mm Tischler- oder Multiplexplatte (verzieht sich nicht, verträgt die Feuchte beim Einschottern), Rahmenhöhe 80–100 mm. Beine 44–58 mm Rahmenholz mit höhenverstellbaren Stellfüßen — der Betonboden ist nie eben.</li>
+      <li><strong>Raster:</strong> Innenstreben im Abstand von 40–50 cm gegen Durchbiegen. Streben unten ca. 20 mm kürzen oder vorbohren, damit später Kabelkanäle durchlaufen.</li>
+      <li><strong>Montage:</strong> Immer vorbohren und senken (Sperrholz reißt sonst), Leim + Spax 4×50, Ecken mit Metallwinkeln versteifen, Rechtwinkligkeit mit Anschlagwinkel prüfen. Beine mit Schlossschrauben M6/M8 und Flügelmuttern — so bleibt alles demontierbar.</li>
+      <li><strong>Segmente:</strong> In Kästen von max. ca. 120 × 80 cm bauen — handlich im Bastelraum und passt durch die 1,18-m-Tür. Wichtig bei den 130/140-cm-Schenkeln: quer teilen, nicht längs.</li>
+      <li><strong>Trassen:</strong> Gleistrassen aus 8–10 mm Sperrholz auf Spanten — Steigungen (Wendel zu SBF 1 und 2!) zentimetergenau justierbar. Vor dem Gleisbau Kork- oder Kork-Gummi-Dämmung aufkleben gegen Fahrgeräusche.</li>
+      <li><strong>Eingrifflöcher:</strong> Unter SBF 1 (Basis) und SBF 2 (linker Schenkel) keine dicken Querstreben — im Havariefall muss die Hand an jedes Gleis kommen.</li>
+      <li><strong>Gelände:</strong> Berge und das abgesenkte Flussbett der vier Viadukte werden mit Fliegengitter/Alugewebe oder Styrodur zwischen die offenen Rahmenfelder gespannt — der Vorteil der offenen Bauweise gegenüber der Platte.</li>
+    </ul>
+  </section>
+
+  <p class="fussnote">Bei „Halt" bremst der Zug ab und hält am Bahnsteig von Bahnhof Nord. Der Tacho rechnet die Geschwindigkeit aufs Vorbild um&nbsp;— im Maßstab 1:87 ist man schneller unterwegs, als man denkt.</p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var gleis = document.getElementById("gleis");
+  var beam = document.getElementById("beam");
+  var daylight = document.getElementById("daylight");
+  var glowset = document.querySelector(".glowset");
+  var lampRot = document.getElementById("lampRot");
+  var lampGruen = document.getElementById("lampGruen");
+  var tacho = document.getElementById("tacho");
+  var fahrregler = document.getElementById("fahrregler");
+  var cars = [0, 1, 2, 3].map(function (i) { return document.getElementById("car" + i); });
+  var OFFSETS = [0, 70, 136, 202];
+  var carsB = [document.getElementById("b0"), document.getElementById("b1")];
+  var OFFSETS_B = [0, 66];
+  var LANE = 8;                 // halber Gleisabstand der Doppelspur
+
+  var L = gleis.getTotalLength();
+
+  // Haltepunkt: der Punkt der Strecke, der der Mitte von Bahnhof Nord (530,123)
+  // am nächsten liegt, plus halbe Zuglänge für mittigen Halt am Bahnsteig.
+  var stationS = 0, best = Infinity;
+  for (var s = 0; s < L; s += 3) {
+    var p = gleis.getPointAtLength(s);
+    var d = (p.x - 530) * (p.x - 530) + (p.y - 123) * (p.y - 123);
+    if (d < best) { best = d; stationS = s; }
+  }
+  var stopS = (stationS + 110) % L;
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var fahrt = !reduced;
+  var pos = stopS;
+  var v = 0;                    // px/s
+  var posB = (stopS + L * 0.45) % L;
+  var vB = 0;
+  var ACCEL = 45;               // px/s²
+  var BREMSWEG = 240;           // px vor dem Haltepunkt
+  var KMH = 1.74;               // px/s -> km/h beim Vorbild (180 px/m, 1:87)
+
+  function maxV() { return Number(fahrregler.value) * 0.9; }
+
+  // dir +1 = Uhrzeigersinn (Zug A), -1 = Gegenrichtung (Zug B).
+  // Jeder Zug fährt auf dem rechten Gleis seiner Fahrtrichtung.
+  function place(el, s, dir) {
+    var p1 = gleis.getPointAtLength(s);
+    var p2 = gleis.getPointAtLength(((s + dir * 2) % L + L) % L);
+    var dx = p2.x - p1.x, dy = p2.y - p1.y;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var x = p1.x + (-dy / len) * LANE;
+    var y = p1.y + (dx / len) * LANE;
+    var a = Math.atan2(dy, dx) * 180 / Math.PI;
+    var t = "translate(" + x.toFixed(2) + " " + y.toFixed(2) + ") rotate(" + a.toFixed(2) + ")";
+    el.setAttribute("transform", t);
+    return t;
+  }
+
+  function renderTrain() {
+    for (var i = 0; i < cars.length; i++) {
+      var s = ((pos - OFFSETS[i]) % L + L) % L;
+      var t = place(cars[i], s, 1);
+      if (i === 0) beam.setAttribute("transform", t);
+    }
+    for (var j = 0; j < carsB.length; j++) {
+      var sB = ((posB + OFFSETS_B[j]) % L + L) % L;
+      place(carsB[j], sB, -1);
+    }
+  }
+
+  var last = null;
+  function tick(now) {
+    if (last === null) last = now;
+    var dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+
+    var ziel = maxV();
+    if (!fahrt) {
+      var dist = ((stopS - pos) % L + L) % L;
+      if (dist < BREMSWEG) ziel = Math.min(ziel, Math.max(0, (dist - 4) / BREMSWEG * 80));
+      if (dist < 6 && v < 8) { v = 0; pos = stopS; ziel = 0; }
+    }
+    if (v < ziel) v = Math.min(ziel, v + ACCEL * dt);
+    else v = Math.max(ziel, v - ACCEL * 1.6 * dt);
+
+    var zielB = maxV() * 0.85;
+    if (vB < zielB) vB = Math.min(zielB, vB + ACCEL * dt);
+    else vB = Math.max(zielB, vB - ACCEL * 1.6 * dt);
+
+    pos = (pos + v * dt) % L;
+    posB = ((posB - vB * dt) % L + L) % L;
+    renderTrain();
+    tacho.value = Math.round(v * KMH) + " km/h";
+    requestAnimationFrame(tick);
+  }
+
+  function setSignal(f) {
+    fahrt = f;
+    document.getElementById("btnFahrt").setAttribute("aria-pressed", String(f));
+    document.getElementById("btnHalt").setAttribute("aria-pressed", String(!f));
+    lampGruen.setAttribute("fill", f ? "#57e06b" : "#2c4a2c");
+    lampRot.setAttribute("fill", f ? "#5a2a24" : "#ff5a44");
+  }
+  function setNacht(n) {
+    document.getElementById("btnNacht").setAttribute("aria-pressed", String(n));
+    document.getElementById("btnTag").setAttribute("aria-pressed", String(!n));
+    daylight.setAttribute("opacity", n ? "0.55" : "0");
+    glowset.setAttribute("opacity", n ? "1" : "0");
+  }
+
+  document.getElementById("btnHalt").addEventListener("click", function () { setSignal(false); });
+  document.getElementById("btnFahrt").addEventListener("click", function () { setSignal(true); });
+  document.getElementById("btnTag").addEventListener("click", function () { setNacht(false); });
+  document.getElementById("btnNacht").addEventListener("click", function () { setNacht(true); });
+
+  setSignal(fahrt);
+  setNacht(false);
+  renderTrain();
+  requestAnimationFrame(tick);
+})();
+</script>
