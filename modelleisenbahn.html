@@ -1,0 +1,523 @@
+<title>Anlage Lindental</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* Ein bewusst einthemiges Design: Abend im Hobbykeller. Alle Farben sind explizit gesetzt. */
+  :root {
+    --raum: #201d18;
+    --gras: #3a5a37;
+    --gras-hell: #476b41;
+    --schotter: #575049;
+    --schwelle: #6d5741;
+    --schiene: #cac2b2;
+    --holz: #5a4632;
+    --holz-dunkel: #46351f;
+    --beton: #45423c;
+    --wand: #8b8578;
+    --pult: #26302a;
+    --pult-tief: #1c241f;
+    --elfenbein: #e9e2cf;
+    --elfenbein-gedimmt: #b8b1a0;
+    --messing: #cfa14e;
+    --lokrot: #a83226;
+    --display: "Arial Narrow", "Helvetica Neue Condensed", "Liberation Sans Narrow", Arial, sans-serif;
+    --body: Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Liberation Mono", Menlo, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--raum); }
+  body {
+    font-family: var(--body);
+    color: var(--elfenbein);
+    line-height: 1.55;
+    padding: 48px 20px 64px;
+    background:
+      radial-gradient(1100px 500px at 50% -80px, #2b2720 0%, var(--raum) 60%);
+  }
+  main { max-width: 1020px; margin: 0 auto; }
+
+  /* ── Emailschild-Kopf ─────────────────────────────── */
+  header { text-align: center; margin-bottom: 30px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--messing);
+    margin-bottom: 14px;
+  }
+  .schild {
+    display: inline-block;
+    background: #24382b;
+    border: 3px solid var(--elfenbein);
+    outline: 2px solid #24382b;
+    border-radius: 6px;
+    padding: 10px 34px 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(30px, 5.4vw, 52px);
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--elfenbein);
+    text-wrap: balance;
+    line-height: 1.05;
+  }
+  .untertitel {
+    max-width: 62ch;
+    margin: 18px auto 0;
+    color: var(--elfenbein-gedimmt);
+    font-size: 17px;
+    font-style: italic;
+  }
+
+  /* ── Anlage ───────────────────────────────────────── */
+  .anlage {
+    background: var(--holz-dunkel);
+    border-radius: 20px;
+    padding: 10px;
+    box-shadow: 0 18px 40px rgba(0,0,0,.5);
+  }
+  .anlage svg { display: block; width: 100%; height: auto; border-radius: 12px; }
+
+  /* ── Stellwerk ────────────────────────────────────── */
+  .stellwerk {
+    margin-top: 22px;
+    background: linear-gradient(#2a352e, var(--pult));
+    border: 1px solid #3b473f;
+    border-radius: 14px;
+    padding: 20px 26px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 26px 40px;
+    justify-content: center;
+    align-items: stretch;
+    box-shadow: 0 10px 26px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07);
+  }
+  .ctrl { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .ctrl > .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--messing);
+  }
+  .knopfreihe {
+    display: flex;
+    border: 1px solid #4a564d;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--pult-tief);
+  }
+  .knopfreihe button {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: .08em;
+    padding: 9px 18px;
+    border: 0;
+    background: transparent;
+    color: var(--elfenbein-gedimmt);
+    cursor: pointer;
+  }
+  .knopfreihe button + button { border-left: 1px solid #4a564d; }
+  .knopfreihe button[aria-pressed="true"] {
+    background: var(--elfenbein);
+    color: #22301f;
+    font-weight: 700;
+  }
+  .knopfreihe button:focus-visible,
+  input[type=range]:focus-visible {
+    outline: 2px solid var(--messing);
+    outline-offset: 2px;
+  }
+  .regler { min-width: 240px; }
+  .reglerzeile { display: flex; align-items: center; gap: 14px; width: 100%; }
+  input[type=range] {
+    flex: 1;
+    accent-color: var(--messing);
+    height: 26px;
+  }
+  #tacho {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 15px;
+    color: var(--elfenbein);
+    background: #141a16;
+    border: 1px solid #4a564d;
+    border-radius: 6px;
+    padding: 5px 10px;
+    min-width: 96px;
+    text-align: right;
+  }
+
+  /* ── Planungsnotizen ─────────────────────────────── */
+  .notizen {
+    margin: 26px auto 0;
+    max-width: 74ch;
+    background: #262319;
+    border: 1px solid #3a362b;
+    border-radius: 12px;
+    padding: 18px 24px;
+  }
+  .notizen h2 {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--messing);
+    margin-bottom: 10px;
+  }
+  .notizen ul { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .notizen li { padding-left: 20px; position: relative; color: var(--elfenbein-gedimmt); font-size: 15.5px; }
+  .notizen li::before { content: "▸"; position: absolute; left: 0; color: var(--messing); }
+  .notizen strong { color: var(--elfenbein); font-weight: 600; }
+  .fussnote {
+    margin: 22px auto 0;
+    max-width: 62ch;
+    text-align: center;
+    color: #8f897b;
+    font-size: 14.5px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .knopfreihe button, #daylight, .glowset { transition: all .35s ease; }
+  }
+</style>
+
+<main>
+  <header>
+    <p class="eyebrow">Spur H0 · UG 0.1 Bastelraum · 4,86 × 4,36 m · 21,2 m²</p>
+    <div class="schild"><h1>Anlage Lindental</h1></div>
+    <p class="untertitel">Anlagenplanung in U-Form für den Bastelraum: Einstieg durch die Tür in den Bedienergang, Ausbaustufe&nbsp;2 als Regalanlage im Gang. Signal auf Fahrt, Fahrregler aufdrehen&nbsp;— und abends die Lichter anschalten.</p>
+  </header>
+
+  <figure class="anlage" aria-label="Maßstäbliche Draufsicht des Bastelraums UG 0.1 mit U-förmiger Modellbahnanlage: Der Bedienergang liegt an der Tür, ein Zug fährt auf der Hauptstrecke, darunter der Gang UG 0.2 mit der geplanten Ausbaustufe 2.">
+    <svg id="szene" viewBox="0 0 1000 1360" role="img">
+      <defs>
+        <filter id="soft" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="5"/>
+        </filter>
+        <radialGradient id="lampe" r="50%">
+          <stop offset="0%" stop-color="#ffe9a3" stop-opacity=".9"/>
+          <stop offset="100%" stop-color="#ffe9a3" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <!-- Maßketten -->
+      <g stroke="#7a766a" stroke-width="1" fill="none">
+        <line x1="60" y1="22" x2="935" y2="22"/>
+        <line x1="60" y1="16" x2="60" y2="28"/><line x1="935" y1="16" x2="935" y2="28"/>
+        <line x1="14" y1="60" x2="14" y2="845"/>
+        <line x1="8" y1="60" x2="20" y2="60"/><line x1="8" y1="845" x2="20" y2="845"/>
+      </g>
+      <g font-family="ui-monospace, Menlo, monospace" font-size="15" fill="#a49e8e">
+        <text x="497" y="14" text-anchor="middle">4,86</text>
+        <text x="-452" y="10" text-anchor="middle" transform="rotate(-90)" >4,36</text>
+      </g>
+
+      <!-- Betonboden (Raum + Gang) -->
+      <rect x="36" y="36" width="923" height="1284" fill="var(--beton)"/>
+
+      <!-- Wände -->
+      <g fill="var(--wand)">
+        <rect x="36" y="36" width="923" height="24"/>
+        <rect x="36" y="36" width="24" height="1284"/>
+        <rect x="935" y="36" width="24" height="1284"/>
+        <!-- Zwischenwand mit Tür und Durchbruch -->
+        <rect x="36" y="845" width="124" height="24"/>
+        <rect x="200" y="845" width="262" height="24"/>
+        <rect x="674" y="845" width="261" height="24"/>
+        <!-- Gang-Südwand mit Öffnung zur Treppe -->
+        <rect x="36" y="1296" width="204" height="24"/>
+        <rect x="330" y="1296" width="629" height="24"/>
+      </g>
+
+      <!-- Anlagenplatte in U-Form (Anlage 1) -->
+      <path d="M 60,60 H 935 V 845 H 674 V 553 Q 674,539 660,539 H 476 Q 462,539 462,553 V 845 H 60 Z"
+            fill="var(--gras)" stroke="var(--holz)" stroke-width="9" stroke-linejoin="round"/>
+      <ellipse cx="260" cy="650" rx="130" ry="100" fill="var(--gras-hell)" opacity=".35"/>
+      <ellipse cx="590" cy="300" rx="160" ry="90" fill="var(--gras-hell)" opacity=".4"/>
+      <ellipse cx="810" cy="640" rx="60" ry="90" fill="var(--gras-hell)" opacity=".3"/>
+      <!-- Teich im linken Anlagenteil -->
+      <ellipse cx="255" cy="520" rx="34" ry="20" fill="#4a6d80" stroke="#3c5a6a" stroke-width="3"/>
+
+      <!-- Abstellgleis im rechten Anlagenteil -->
+      <g>
+        <path d="M 737,590 C 737,634 790,626 790,668 L 790,726" fill="none" stroke="var(--schotter)" stroke-width="24"/>
+        <path d="M 737,590 C 737,634 790,626 790,668 L 790,726" fill="none" stroke="var(--schwelle)" stroke-width="18" stroke-dasharray="4 10"/>
+        <path d="M 737,590 C 737,634 790,626 790,668 L 790,726" fill="none" stroke="var(--schiene)" stroke-width="10"/>
+        <path d="M 737,590 C 737,634 790,626 790,668 L 790,726" fill="none" stroke="var(--schotter)" stroke-width="6"/>
+        <path d="M 737,590 C 737,634 790,626 790,668 L 790,726" fill="none" stroke="var(--schwelle)" stroke-width="6" stroke-dasharray="4 10"/>
+        <rect x="780" y="726" width="20" height="8" rx="2" fill="#3b3733"/>
+        <g transform="translate(790 692) rotate(90)"><rect x="-28" y="-10" width="56" height="20" rx="4" fill="#6b4f3a"/><rect x="-28" y="-2" width="56" height="4" fill="#57402f"/></g>
+      </g>
+
+      <!-- Hauptstrecke: Ring um den Bedienergang -->
+      <g>
+        <path id="gleis" d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schotter)" stroke-width="26"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schwelle)" stroke-width="20" stroke-dasharray="4 10"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schiene)" stroke-width="10"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schotter)" stroke-width="6"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schwelle)" stroke-width="6" stroke-dasharray="4 10"/>
+      </g>
+
+      <!-- Bahnhof an der Nordwand -->
+      <rect x="420" y="140" width="220" height="14" rx="4" fill="#8a8577"/>
+      <rect x="420" y="140" width="220" height="4" rx="2" fill="#a09b8c"/>
+      <g>
+        <rect x="470" y="164" width="120" height="44" rx="5" fill="#8c4a3a"/>
+        <rect x="470" y="182" width="120" height="5" fill="#6f382c"/>
+        <rect x="524" y="164" width="12" height="44" fill="#6f382c" opacity=".55"/>
+        <circle cx="576" cy="172" r="5" fill="#5a4632"/>
+      </g>
+
+      <!-- Dorf im Nordteil -->
+      <g>
+        <g transform="translate(520 300)"><rect x="-22" y="-14" width="44" height="28" rx="3" fill="#7c6a4e"/><rect x="-22" y="-3" width="44" height="5" fill="#63543d"/></g>
+        <g transform="translate(600 268) rotate(12)"><rect x="-20" y="-13" width="40" height="26" rx="3" fill="#8c4a3a"/><rect x="-20" y="-3" width="40" height="5" fill="#6f382c"/></g>
+        <g transform="translate(568 352) rotate(-8)"><rect x="-18" y="-12" width="36" height="24" rx="3" fill="#71767f"/><rect x="-18" y="-3" width="36" height="5" fill="#5a5f68"/></g>
+      </g>
+
+      <!-- Bäume -->
+      <g fill="#2c4a2c" stroke="#233c23" stroke-width="2">
+        <circle cx="205" cy="600" r="16"/><circle cx="240" cy="632" r="12"/><circle cx="185" cy="700" r="13"/>
+        <circle cx="300" cy="700" r="14"/>
+        <circle cx="700" cy="228" r="14"/><circle cx="730" cy="252" r="10"/>
+        <circle cx="836" cy="742" r="12"/>
+        <circle cx="300" cy="240" r="15"/><circle cx="268" cy="268" r="11"/>
+      </g>
+
+      <!-- Signal am Bahnsteigende -->
+      <g>
+        <rect x="652" y="176" width="4" height="16" fill="#3b3733"/>
+        <rect x="647" y="158" width="14" height="18" rx="3" fill="#2b2825"/>
+        <circle id="lampRot" cx="654" cy="164" r="3.4" fill="#5a2a24"/>
+        <circle id="lampGruen" cx="654" cy="171" r="3.4" fill="#2c4a2c"/>
+      </g>
+
+      <!-- Zug -->
+      <g id="zug">
+        <g id="car3"><rect x="-28" y="-10" width="56" height="20" rx="4" fill="#6b4f3a"/><rect x="-28" y="-2" width="56" height="4" fill="#57402f"/><rect x="-30" y="-6" width="3" height="12" fill="#33302c"/></g>
+        <g id="car2"><rect x="-28" y="-10" width="56" height="20" rx="4" fill="#3f5f7a"/><rect x="-28" y="-2" width="56" height="4" fill="#324c62"/></g>
+        <g id="car1"><rect x="-28" y="-10" width="56" height="20" rx="4" fill="#3f5f7a"/><rect x="-28" y="-2" width="56" height="4" fill="#324c62"/></g>
+        <g id="car0">
+          <polygon points="-32,-11 22,-11 32,-4 32,4 22,11 -32,11" fill="var(--lokrot)"/>
+          <rect x="-32" y="-3" width="58" height="6" fill="#7e241b"/>
+          <rect x="-26" y="-8" width="14" height="16" rx="2" fill="#872a1f"/>
+          <circle cx="20" cy="0" r="3" fill="#3b3733"/>
+          <rect x="-34" y="-6" width="3" height="12" fill="#33302c"/>
+        </g>
+      </g>
+
+      <!-- Tunnelberg über der Nordwest-Ecke -->
+      <g>
+        <path d="M 92,330 C 84,200 96,98 230,92 C 296,89 330,102 336,132 C 344,170 302,178 262,196 C 204,222 148,262 128,330 Z"
+              fill="#4a6a44" stroke="#3c5738" stroke-width="3"/>
+        <path d="M 118,300 C 116,200 130,124 226,116 C 274,112 304,124 308,142 C 314,168 276,176 244,192 C 196,216 152,246 136,300 Z"
+              fill="#557a4d" opacity=".8"/>
+        <path d="M 150,250 C 156,186 186,148 234,140 C 262,136 282,142 284,152 C 288,168 258,176 232,190 C 198,208 168,222 158,250 Z"
+              fill="#628a58" opacity=".8"/>
+        <circle cx="180" cy="140" r="10" fill="#3c5738"/>
+        <circle cx="240" cy="118" r="8" fill="#3c5738"/>
+        <circle cx="130" cy="250" r="9" fill="#3c5738"/>
+        <circle cx="212" cy="170" r="7" fill="#436140"/>
+        <circle cx="304" cy="123" r="16" fill="#7d7469"/>
+        <circle cx="304" cy="123" r="12" fill="#2a2724"/>
+        <circle cx="123" cy="304" r="16" fill="#7d7469"/>
+        <circle cx="123" cy="304" r="12" fill="#2a2724"/>
+      </g>
+
+      <!-- Bedienergang + Tür -->
+      <g font-family="ui-monospace, Menlo, monospace" fill="#a49e8e">
+        <line x1="568" y1="856" x2="568" y2="700" stroke="#a49e8e" stroke-width="2" stroke-dasharray="6 6"/>
+        <polygon points="568,690 561,706 575,706" fill="#a49e8e"/>
+        <text x="568" y="672" text-anchor="middle" font-size="15">Einstieg</text>
+        <text x="568" y="828" text-anchor="middle" font-size="13">Tür 1,18</text>
+      </g>
+      <text x="260" y="446" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="17" letter-spacing="3" fill="#c8bd9c" opacity=".85">ANLAGE 1</text>
+
+      <!-- Durchbruch zur Ausbaustufe 2 -->
+      <g>
+        <g stroke="#c8bd9c" stroke-width="3" opacity=".8">
+          <line x1="158" y1="838" x2="172" y2="876"/>
+          <line x1="172" y1="838" x2="186" y2="876"/>
+          <line x1="186" y1="838" x2="200" y2="876"/>
+        </g>
+        <path d="M 240,782 C 200,796 180,812 180,869 L 180,940 C 180,986 96,972 96,1020 L 96,1230 C 96,1268 140,1262 190,1262 L 560,1262"
+              fill="none" stroke="#c8bd9c" stroke-width="5" stroke-dasharray="10 9" opacity=".65"/>
+        <text x="262" y="912" font-family="ui-monospace, Menlo, monospace" font-size="14" fill="#a49e8e">Durchbruch</text>
+      </g>
+
+      <!-- Gang UG 0.2 mit Ausbaustufe 2 -->
+      <g>
+        <g fill="var(--gras)" opacity=".25" stroke="#c8bd9c" stroke-width="2" stroke-dasharray="8 7">
+          <rect x="60" y="869" width="72" height="427"/>
+          <rect x="132" y="1224" width="640" height="72"/>
+        </g>
+        <!-- Tisch aus der Skizze -->
+        <rect x="700" y="890" width="180" height="64" rx="6" fill="#6b543c" stroke="#57452f" stroke-width="4"/>
+        <text x="790" y="928" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="15" fill="#e0d6bd">Tisch</text>
+        <text x="470" y="1090" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="17" letter-spacing="3" fill="#c8bd9c" opacity=".85">ANLAGE 2 · GEPLANT</text>
+        <text x="470" y="1116" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="14" fill="#8f897b">UG 0.2 · Gang · Regalanlage, T 40 cm</text>
+        <text x="285" y="1345" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#8f897b">zur Treppe</text>
+      </g>
+
+      <!-- Nacht -->
+      <rect id="daylight" x="36" y="36" width="923" height="1284" fill="#0b1424" opacity="0" pointer-events="none"/>
+      <g class="glowset" opacity="0" pointer-events="none">
+        <circle cx="450" cy="147" r="16" fill="url(#lampe)"/>
+        <circle cx="530" cy="147" r="16" fill="url(#lampe)"/>
+        <circle cx="610" cy="147" r="16" fill="url(#lampe)"/>
+        <circle cx="450" cy="147" r="2.4" fill="#ffe9a3"/>
+        <circle cx="530" cy="147" r="2.4" fill="#ffe9a3"/>
+        <circle cx="610" cy="147" r="2.4" fill="#ffe9a3"/>
+        <ellipse cx="500" cy="212" rx="26" ry="9" fill="#ffdf8e" opacity=".5" filter="url(#soft)"/>
+        <ellipse cx="562" cy="212" rx="26" ry="9" fill="#ffdf8e" opacity=".5" filter="url(#soft)"/>
+        <rect x="484" y="172" width="10" height="8" rx="2" fill="#ffdf8e" opacity=".85"/>
+        <rect x="552" y="172" width="10" height="8" rx="2" fill="#ffdf8e" opacity=".85"/>
+        <rect x="508" y="292" width="9" height="7" rx="2" fill="#ffdf8e" opacity=".8"/>
+        <rect x="594" y="262" width="9" height="7" rx="2" fill="#ffdf8e" opacity=".8"/>
+        <circle cx="790" cy="922" r="26" fill="url(#lampe)"/>
+        <g id="beam"><polygon points="32,-4 116,-18 116,18 32,4" fill="#ffe9a3" opacity=".32" filter="url(#soft)"/></g>
+      </g>
+    </svg>
+  </figure>
+
+  <section class="stellwerk" aria-label="Stellwerk">
+    <div class="ctrl">
+      <span class="label">Signal Lindental</span>
+      <div class="knopfreihe" role="group" aria-label="Signalstellung">
+        <button id="btnHalt" aria-pressed="false">Halt</button>
+        <button id="btnFahrt" aria-pressed="true">Fahrt</button>
+      </div>
+    </div>
+    <div class="ctrl regler">
+      <label class="label" for="fahrregler">Fahrregler</label>
+      <div class="reglerzeile">
+        <input id="fahrregler" type="range" min="0" max="100" value="55">
+        <output id="tacho" for="fahrregler">0 km/h</output>
+      </div>
+    </div>
+    <div class="ctrl">
+      <span class="label">Beleuchtung</span>
+      <div class="knopfreihe" role="group" aria-label="Beleuchtung">
+        <button id="btnTag" aria-pressed="true">Tag</button>
+        <button id="btnNacht" aria-pressed="false">Nacht</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="notizen" aria-label="Planungsnotizen">
+    <h2>Planungsnotizen</h2>
+    <ul>
+      <li><strong>U-Form mit Bedienergang:</strong> Der Einstieg liegt direkt an der Tür (1,18 m), der Gang reicht ca. 1,70 m in den Raum — kein Kriechgang, keine Klappe nötig.</li>
+      <li><strong>Mindestradius:</strong> Der gezeichnete Ring fährt mit ca. 36 cm (R1). Für lange Reisezugwagen besser 43 cm und mehr einplanen — die Ecken geben das her.</li>
+      <li><strong>Zugriffstiefe:</strong> Die Flächen links und rechts des Einstiegs sind stellenweise tiefer als 75 cm. Dort Serviceluken oder offene Gestaltung (Wiesen statt Bebauung) vorsehen.</li>
+      <li><strong>Kehrschleife im Berg:</strong> Die Nordwest-Ecke verschwindet im Tunnel — gut für die Optik, aber Revisionsöffnung von unten nicht vergessen.</li>
+      <li><strong>Ausbaustufe 2:</strong> Regalanlage (T 40 cm) im Gang UG 0.2, angebunden über einen Wanddurchbruch links der Tür. Der Tisch aus der Skizze bleibt als Arbeitsplatz frei.</li>
+      <li><strong>Raumklima:</strong> Beide Räume sind Beton roh (FB −2,82 bzw. −2,59) — vor dem Anlagenbau Boden versiegeln und auf Feuchte prüfen.</li>
+    </ul>
+  </section>
+
+  <p class="fussnote">Bei „Halt" bremst der Zug ab und kommt am Bahnsteig von Lindental zum Stehen. Der Tacho rechnet die Geschwindigkeit aufs Vorbild um&nbsp;— im Maßstab 1:87 ist man schneller unterwegs, als man denkt.</p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var gleis = document.getElementById("gleis");
+  var beam = document.getElementById("beam");
+  var daylight = document.getElementById("daylight");
+  var glowset = document.querySelector(".glowset");
+  var lampRot = document.getElementById("lampRot");
+  var lampGruen = document.getElementById("lampGruen");
+  var tacho = document.getElementById("tacho");
+  var fahrregler = document.getElementById("fahrregler");
+  var cars = [0, 1, 2, 3].map(function (i) { return document.getElementById("car" + i); });
+  var OFFSETS = [0, 70, 136, 202];
+
+  var L = gleis.getTotalLength();
+
+  // Haltepunkt: der Punkt der Strecke, der der Bahnhofsmitte (530,123) am nächsten
+  // liegt, plus halbe Zuglänge, damit der Zug mittig am Bahnsteig steht.
+  var stationS = 0, best = Infinity;
+  for (var s = 0; s < L; s += 3) {
+    var p = gleis.getPointAtLength(s);
+    var d = (p.x - 530) * (p.x - 530) + (p.y - 123) * (p.y - 123);
+    if (d < best) { best = d; stationS = s; }
+  }
+  var stopS = (stationS + 110) % L;
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var fahrt = !reduced;
+  var pos = stopS;
+  var v = 0;                    // px/s
+  var ACCEL = 45;               // px/s²
+  var BREMSWEG = 240;           // px vor dem Haltepunkt
+  var KMH = 1.74;               // px/s -> km/h beim Vorbild (180 px/m, 1:87)
+
+  function maxV() { return Number(fahrregler.value) * 0.9; }
+
+  function place(el, s) {
+    var p1 = gleis.getPointAtLength(s);
+    var p2 = gleis.getPointAtLength((s + 2) % L);
+    var a = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+    var t = "translate(" + p1.x.toFixed(2) + " " + p1.y.toFixed(2) + ") rotate(" + a.toFixed(2) + ")";
+    el.setAttribute("transform", t);
+    return t;
+  }
+
+  function renderTrain() {
+    for (var i = 0; i < cars.length; i++) {
+      var s = ((pos - OFFSETS[i]) % L + L) % L;
+      var t = place(cars[i], s);
+      if (i === 0) beam.setAttribute("transform", t);
+    }
+  }
+
+  var last = null;
+  function tick(now) {
+    if (last === null) last = now;
+    var dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+
+    var ziel = maxV();
+    if (!fahrt) {
+      var dist = ((stopS - pos) % L + L) % L;
+      if (dist < BREMSWEG) ziel = Math.min(ziel, Math.max(0, (dist - 4) / BREMSWEG * 80));
+      if (dist < 6 && v < 8) { v = 0; pos = stopS; ziel = 0; }
+    }
+    if (v < ziel) v = Math.min(ziel, v + ACCEL * dt);
+    else v = Math.max(ziel, v - ACCEL * 1.6 * dt);
+
+    pos = (pos + v * dt) % L;
+    renderTrain();
+    tacho.value = Math.round(v * KMH) + " km/h";
+    requestAnimationFrame(tick);
+  }
+
+  function setSignal(f) {
+    fahrt = f;
+    document.getElementById("btnFahrt").setAttribute("aria-pressed", String(f));
+    document.getElementById("btnHalt").setAttribute("aria-pressed", String(!f));
+    lampGruen.setAttribute("fill", f ? "#57e06b" : "#2c4a2c");
+    lampRot.setAttribute("fill", f ? "#5a2a24" : "#ff5a44");
+  }
+  function setNacht(n) {
+    document.getElementById("btnNacht").setAttribute("aria-pressed", String(n));
+    document.getElementById("btnTag").setAttribute("aria-pressed", String(!n));
+    daylight.setAttribute("opacity", n ? "0.55" : "0");
+    glowset.setAttribute("opacity", n ? "1" : "0");
+  }
+
+  document.getElementById("btnHalt").addEventListener("click", function () { setSignal(false); });
+  document.getElementById("btnFahrt").addEventListener("click", function () { setSignal(true); });
+  document.getElementById("btnTag").addEventListener("click", function () { setNacht(false); });
+  document.getElementById("btnNacht").addEventListener("click", function () { setNacht(true); });
+
+  setSignal(fahrt);
+  setNacht(false);
+  renderTrain();
+  requestAnimationFrame(tick);
+})();
+</script>
