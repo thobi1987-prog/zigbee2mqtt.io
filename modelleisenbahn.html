@@ -172,6 +172,11 @@
   .notizen li { padding-left: 20px; position: relative; color: var(--elfenbein-gedimmt); font-size: 15.5px; }
   .notizen li::before { content: "▸"; position: absolute; left: 0; color: var(--messing); }
   .notizen strong { color: var(--elfenbein); font-weight: 600; }
+  .spez table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .spez th, .spez td { text-align: left; padding: 7px 10px 7px 0; vertical-align: top; border-bottom: 1px solid #3a362b; }
+  .spez tr:last-child th, .spez tr:last-child td { border-bottom: 0; }
+  .spez th { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; color: var(--messing); font-weight: 500; white-space: nowrap; padding-right: 18px; }
+  .spez td { color: var(--elfenbein-gedimmt); }
   .fussnote {
     margin: 22px auto 0;
     max-width: 62ch;
@@ -188,7 +193,7 @@
   <header>
     <p class="eyebrow">Spur H0 · UG 0.1 Bastelraum · 4,86 × 4,36 m · 21,2 m²</p>
     <div class="schild"><h1>Anlage Lindental</h1></div>
-    <p class="untertitel">Anlagenplanung in U-Form für den Bastelraum, im Stil der brima-Anlagen: Viadukt überm Fluss, Panoramakulisse, Schattenbahnhof unter der Hauptebene. Signal auf Fahrt, Fahrregler aufdrehen&nbsp;— und abends die Lichter anschalten.</p>
+    <p class="untertitel">Unser eigener Gleisplan, Version 1: doppelgleisige Hauptbahn im Rechtsverkehr, Schattenbahnhof mit sechs Gleisen, Viadukt und Panoramakulisse&nbsp;— gelernt von brima und den MMC-Plänen, gezeichnet für den Bastelraum. Signal auf Fahrt, Fahrregler aufdrehen.</p>
   </header>
 
   <figure class="anlage" aria-label="Maßstäbliche Draufsicht des Bastelraums UG 0.1 mit U-förmiger Modellbahnanlage: Der Bedienergang liegt an der Tür, ein Zug fährt auf der Hauptstrecke, darunter der Gang UG 0.2 mit der geplanten Ausbaustufe 2.">
@@ -257,36 +262,49 @@
         <g transform="translate(790 692) rotate(90)"><rect x="-28" y="-10" width="56" height="20" rx="4" fill="#6b4f3a"/><rect x="-28" y="-2" width="56" height="4" fill="#57402f"/></g>
       </g>
 
-      <!-- Hauptstrecke: Ring um den Bedienergang -->
+      <!-- Hauptstrecke: doppelgleisiger Ring um den Bedienergang -->
       <g>
-        <path id="gleis" d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schotter)" stroke-width="26"/>
-        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schwelle)" stroke-width="20" stroke-dasharray="4 10"/>
+        <path id="gleis" d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schotter)" stroke-width="42"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schwelle)" stroke-width="36" stroke-dasharray="4 10"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schiene)" stroke-width="26"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schotter)" stroke-width="22"/>
+        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schwelle)" stroke-width="16" stroke-dasharray="4 10"/>
         <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schiene)" stroke-width="10"/>
         <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schotter)" stroke-width="6"/>
-        <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schwelle)" stroke-width="6" stroke-dasharray="4 10"/>
       </g>
 
       <!-- Viaduktbrücken über dem Fluss -->
       <g fill="#7d7469">
-        <rect x="104" y="453" width="6" height="38"/>
-        <rect x="136" y="453" width="6" height="38"/>
-        <rect x="286" y="762" width="38" height="6"/>
-        <rect x="286" y="794" width="38" height="6"/>
+        <rect x="96" y="450" width="6" height="44"/>
+        <rect x="144" y="450" width="6" height="44"/>
+        <rect x="282" y="756" width="46" height="6"/>
+        <rect x="282" y="802" width="46" height="6"/>
       </g>
-      <text x="336" y="808" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#a49e8e">Viadukt</text>
+      <text x="336" y="818" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#a49e8e">Viadukt</text>
 
       <!-- Schattenbahnhof unter dem Dorf (Ebene -1) -->
-      <rect x="430" y="230" width="430" height="160" rx="10" fill="none" stroke="#c8bd9c" stroke-width="2" stroke-dasharray="8 7" opacity=".55"/>
-      <text x="645" y="414" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="14" letter-spacing="2" fill="#c8bd9c" opacity=".85">SCHATTENBAHNHOF · EBENE −1</text>
+      <g>
+        <rect x="430" y="230" width="430" height="160" rx="10" fill="none" stroke="#c8bd9c" stroke-width="2" stroke-dasharray="8 7" opacity=".55"/>
+        <g stroke="#c8bd9c" stroke-width="3" stroke-dasharray="2 7" opacity=".35">
+          <line x1="450" y1="255" x2="840" y2="255"/>
+          <line x1="450" y1="277" x2="840" y2="277"/>
+          <line x1="450" y1="299" x2="840" y2="299"/>
+          <line x1="450" y1="321" x2="840" y2="321"/>
+          <line x1="450" y1="343" x2="840" y2="343"/>
+          <line x1="450" y1="365" x2="840" y2="365"/>
+        </g>
+        <text x="645" y="414" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="14" letter-spacing="2" fill="#c8bd9c" opacity=".85">SCHATTENBAHNHOF · EBENE −1</text>
+        <text x="645" y="434" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="#8f897b">6 Gleise · Zufahrt über Gleiswendel im Berg</text>
+      </g>
 
       <!-- Bahnhof an der Nordwand -->
-      <rect x="420" y="140" width="220" height="14" rx="4" fill="#8a8577"/>
-      <rect x="420" y="140" width="220" height="4" rx="2" fill="#a09b8c"/>
+      <rect x="420" y="150" width="220" height="14" rx="4" fill="#8a8577"/>
+      <rect x="420" y="150" width="220" height="4" rx="2" fill="#a09b8c"/>
       <g>
-        <rect x="470" y="164" width="120" height="44" rx="5" fill="#8c4a3a"/>
-        <rect x="470" y="182" width="120" height="5" fill="#6f382c"/>
-        <rect x="524" y="164" width="12" height="44" fill="#6f382c" opacity=".55"/>
-        <circle cx="576" cy="172" r="5" fill="#5a4632"/>
+        <rect x="470" y="174" width="120" height="44" rx="5" fill="#8c4a3a"/>
+        <rect x="470" y="192" width="120" height="5" fill="#6f382c"/>
+        <rect x="524" y="174" width="12" height="44" fill="#6f382c" opacity=".55"/>
+        <circle cx="576" cy="182" r="5" fill="#5a4632"/>
       </g>
 
       <!-- Dorf im Nordteil -->
@@ -307,10 +325,10 @@
 
       <!-- Signal am Bahnsteigende -->
       <g>
-        <rect x="652" y="176" width="4" height="16" fill="#3b3733"/>
-        <rect x="647" y="158" width="14" height="18" rx="3" fill="#2b2825"/>
-        <circle id="lampRot" cx="654" cy="164" r="3.4" fill="#5a2a24"/>
-        <circle id="lampGruen" cx="654" cy="171" r="3.4" fill="#2c4a2c"/>
+        <rect x="652" y="186" width="4" height="16" fill="#3b3733"/>
+        <rect x="647" y="168" width="14" height="18" rx="3" fill="#2b2825"/>
+        <circle id="lampRot" cx="654" cy="174" r="3.4" fill="#5a2a24"/>
+        <circle id="lampGruen" cx="654" cy="181" r="3.4" fill="#2c4a2c"/>
       </g>
 
       <!-- Zug -->
@@ -325,6 +343,9 @@
           <circle cx="20" cy="0" r="3" fill="#3b3733"/>
           <rect x="-34" y="-6" width="3" height="12" fill="#33302c"/>
         </g>
+        <!-- Triebwagen auf dem Gegengleis -->
+        <g id="b1"><polygon points="-30,-10 24,-10 30,-4 30,4 24,10 -30,10" fill="#d8cfb4"/><rect x="-30" y="-2" width="56" height="4" fill="#b3452f"/></g>
+        <g id="b0"><polygon points="-30,-10 24,-10 30,-4 30,4 24,10 -30,10" fill="#b3452f"/><rect x="-30" y="-2" width="56" height="4" fill="#d8cfb4"/><circle cx="18" cy="0" r="3" fill="#3b3733"/></g>
       </g>
 
       <!-- Tunnelberg über der Nordwest-Ecke -->
@@ -383,16 +404,16 @@
       <!-- Nacht -->
       <rect id="daylight" x="36" y="36" width="923" height="1284" fill="#0b1424" opacity="0" pointer-events="none"/>
       <g class="glowset" opacity="0" pointer-events="none">
-        <circle cx="450" cy="147" r="16" fill="url(#lampe)"/>
-        <circle cx="530" cy="147" r="16" fill="url(#lampe)"/>
-        <circle cx="610" cy="147" r="16" fill="url(#lampe)"/>
-        <circle cx="450" cy="147" r="2.4" fill="#ffe9a3"/>
-        <circle cx="530" cy="147" r="2.4" fill="#ffe9a3"/>
-        <circle cx="610" cy="147" r="2.4" fill="#ffe9a3"/>
-        <ellipse cx="500" cy="212" rx="26" ry="9" fill="#ffdf8e" opacity=".5" filter="url(#soft)"/>
-        <ellipse cx="562" cy="212" rx="26" ry="9" fill="#ffdf8e" opacity=".5" filter="url(#soft)"/>
-        <rect x="484" y="172" width="10" height="8" rx="2" fill="#ffdf8e" opacity=".85"/>
-        <rect x="552" y="172" width="10" height="8" rx="2" fill="#ffdf8e" opacity=".85"/>
+        <circle cx="450" cy="157" r="16" fill="url(#lampe)"/>
+        <circle cx="530" cy="157" r="16" fill="url(#lampe)"/>
+        <circle cx="610" cy="157" r="16" fill="url(#lampe)"/>
+        <circle cx="450" cy="157" r="2.4" fill="#ffe9a3"/>
+        <circle cx="530" cy="157" r="2.4" fill="#ffe9a3"/>
+        <circle cx="610" cy="157" r="2.4" fill="#ffe9a3"/>
+        <ellipse cx="500" cy="222" rx="26" ry="9" fill="#ffdf8e" opacity=".5" filter="url(#soft)"/>
+        <ellipse cx="562" cy="222" rx="26" ry="9" fill="#ffdf8e" opacity=".5" filter="url(#soft)"/>
+        <rect x="484" y="182" width="10" height="8" rx="2" fill="#ffdf8e" opacity=".85"/>
+        <rect x="552" y="182" width="10" height="8" rx="2" fill="#ffdf8e" opacity=".85"/>
         <rect x="508" y="292" width="9" height="7" rx="2" fill="#ffdf8e" opacity=".8"/>
         <rect x="594" y="262" width="9" height="7" rx="2" fill="#ffdf8e" opacity=".8"/>
         <circle cx="790" cy="922" r="26" fill="url(#lampe)"/>
@@ -425,6 +446,21 @@
     </div>
   </section>
 
+  <section class="notizen spez" aria-label="Eckdaten">
+    <h2>Gleisplan v1 · Eckdaten</h2>
+    <table>
+      <tr><th>Thema</th><td>Doppelgleisige Hauptbahn mit Bahnhof, Schattenbahnhof und Viadukt</td></tr>
+      <tr><th>Gleissystem</th><td>Märklin C-Gleis (Annahme — sag Bescheid, falls Zweileiter)</td></tr>
+      <tr><th>Maße</th><td>U-Form ca. 4,60 × 4,15 m, Einstieg 1,18 m (Tür), Bedienergang 1,70 m tief</td></tr>
+      <tr><th>Hauptkreis</th><td>ca. 17,8 m je Richtung, Gesamtgleislänge grob 50 m</td></tr>
+      <tr><th>Mindestradius</th><td>36 cm (R1) im Entwurf — Ziel beim Verfeinern: 43 cm (R2) auf der Hauptbahn</td></tr>
+      <tr><th>Ebenen</th><td>2 + Gleiswendel: Ebene 0 auf +105 cm, Ebene −1 (SBF) auf +80 cm</td></tr>
+      <tr><th>Schattenbahnhof</th><td>1 × 6 Gleise unter dem Dorf, Zufahrt über Wendel im Tunnelberg</td></tr>
+      <tr><th>Bahnsteiglänge</th><td>ca. 120 cm — Lok + 4 Reisezugwagen</td></tr>
+      <tr><th>Betrieb</th><td>2 Züge gleichzeitig auf der Hauptbahn, Reserven im SBF</td></tr>
+    </table>
+  </section>
+
   <section class="notizen" aria-label="Planungsnotizen">
     <h2>Planungsnotizen</h2>
     <ul>
@@ -455,6 +491,9 @@
   var fahrregler = document.getElementById("fahrregler");
   var cars = [0, 1, 2, 3].map(function (i) { return document.getElementById("car" + i); });
   var OFFSETS = [0, 70, 136, 202];
+  var carsB = [document.getElementById("b0"), document.getElementById("b1")];
+  var OFFSETS_B = [0, 66];
+  var LANE = 8;                 // halber Gleisabstand der Doppelspur
 
   var L = gleis.getTotalLength();
 
@@ -472,17 +511,25 @@
   var fahrt = !reduced;
   var pos = stopS;
   var v = 0;                    // px/s
+  var posB = (stopS + L * 0.45) % L;
+  var vB = 0;
   var ACCEL = 45;               // px/s²
   var BREMSWEG = 240;           // px vor dem Haltepunkt
   var KMH = 1.74;               // px/s -> km/h beim Vorbild (180 px/m, 1:87)
 
   function maxV() { return Number(fahrregler.value) * 0.9; }
 
-  function place(el, s) {
+  // dir +1 = Uhrzeigersinn (Zug A), -1 = Gegenrichtung (Zug B).
+  // Jeder Zug fährt auf dem rechten Gleis seiner Fahrtrichtung.
+  function place(el, s, dir) {
     var p1 = gleis.getPointAtLength(s);
-    var p2 = gleis.getPointAtLength((s + 2) % L);
-    var a = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
-    var t = "translate(" + p1.x.toFixed(2) + " " + p1.y.toFixed(2) + ") rotate(" + a.toFixed(2) + ")";
+    var p2 = gleis.getPointAtLength(((s + dir * 2) % L + L) % L);
+    var dx = p2.x - p1.x, dy = p2.y - p1.y;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var x = p1.x + (-dy / len) * LANE;
+    var y = p1.y + (dx / len) * LANE;
+    var a = Math.atan2(dy, dx) * 180 / Math.PI;
+    var t = "translate(" + x.toFixed(2) + " " + y.toFixed(2) + ") rotate(" + a.toFixed(2) + ")";
     el.setAttribute("transform", t);
     return t;
   }
@@ -490,8 +537,12 @@
   function renderTrain() {
     for (var i = 0; i < cars.length; i++) {
       var s = ((pos - OFFSETS[i]) % L + L) % L;
-      var t = place(cars[i], s);
+      var t = place(cars[i], s, 1);
       if (i === 0) beam.setAttribute("transform", t);
+    }
+    for (var j = 0; j < carsB.length; j++) {
+      var sB = ((posB + OFFSETS_B[j]) % L + L) % L;
+      place(carsB[j], sB, -1);
     }
   }
 
@@ -510,7 +561,12 @@
     if (v < ziel) v = Math.min(ziel, v + ACCEL * dt);
     else v = Math.max(ziel, v - ACCEL * 1.6 * dt);
 
+    var zielB = maxV() * 0.85;
+    if (vB < zielB) vB = Math.min(zielB, vB + ACCEL * dt);
+    else vB = Math.max(zielB, vB - ACCEL * 1.6 * dt);
+
     pos = (pos + v * dt) % L;
+    posB = ((posB - vB * dt) % L + L) % L;
     renderTrain();
     tacho.value = Math.round(v * KMH) + " km/h";
     requestAnimationFrame(tick);
