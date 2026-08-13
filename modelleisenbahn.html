@@ -188,7 +188,7 @@
   <header>
     <p class="eyebrow">Spur H0 · UG 0.1 Bastelraum · 4,86 × 4,36 m · 21,2 m²</p>
     <div class="schild"><h1>Anlage Lindental</h1></div>
-    <p class="untertitel">Anlagenplanung in U-Form für den Bastelraum: Einstieg durch die Tür in den Bedienergang, Ausbaustufe&nbsp;2 als Regalanlage im Gang. Signal auf Fahrt, Fahrregler aufdrehen&nbsp;— und abends die Lichter anschalten.</p>
+    <p class="untertitel">Anlagenplanung in U-Form für den Bastelraum, im Stil der brima-Anlagen: Viadukt überm Fluss, Panoramakulisse, Schattenbahnhof unter der Hauptebene. Signal auf Fahrt, Fahrregler aufdrehen&nbsp;— und abends die Lichter anschalten.</p>
   </header>
 
   <figure class="anlage" aria-label="Maßstäbliche Draufsicht des Bastelraums UG 0.1 mit U-förmiger Modellbahnanlage: Der Bedienergang liegt an der Tür, ein Zug fährt auf der Hauptstrecke, darunter der Gang UG 0.2 mit der geplanten Ausbaustufe 2.">
@@ -238,7 +238,12 @@
       <ellipse cx="260" cy="650" rx="130" ry="100" fill="var(--gras-hell)" opacity=".35"/>
       <ellipse cx="590" cy="300" rx="160" ry="90" fill="var(--gras-hell)" opacity=".4"/>
       <ellipse cx="810" cy="640" rx="60" ry="90" fill="var(--gras-hell)" opacity=".3"/>
-      <!-- Teich im linken Anlagenteil -->
+      <!-- Panoramakulisse an Nord- und Ostwand -->
+      <rect x="60" y="60" width="875" height="8" fill="#7fa3b3"/>
+      <rect x="927" y="60" width="8" height="785" fill="#7fa3b3"/>
+      <!-- Flusslauf mit Teich im linken Anlagenteil -->
+      <path d="M 60,470 C 150,478 210,500 255,520 C 300,540 312,600 302,660 C 294,715 300,760 308,845" fill="none" stroke="#4a6d80" stroke-width="16"/>
+      <path d="M 60,470 C 150,478 210,500 255,520 C 300,540 312,600 302,660 C 294,715 300,760 308,845" fill="none" stroke="#5a7d90" stroke-width="7" opacity=".8"/>
       <ellipse cx="255" cy="520" rx="34" ry="20" fill="#4a6d80" stroke="#3c5a6a" stroke-width="3"/>
 
       <!-- Abstellgleis im rechten Anlagenteil -->
@@ -260,6 +265,19 @@
         <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schotter)" stroke-width="6"/>
         <path d="M 188,123 H 807 A 65 65 0 0 1 872,188 V 717 A 65 65 0 0 1 807,782 H 802 A 65 65 0 0 1 737,717 V 541 A 65 65 0 0 0 672,476 H 464 A 65 65 0 0 0 399,541 V 717 A 65 65 0 0 1 334,782 H 188 A 65 65 0 0 1 123,717 V 188 A 65 65 0 0 1 188,123 Z" fill="none" stroke="var(--schwelle)" stroke-width="6" stroke-dasharray="4 10"/>
       </g>
+
+      <!-- Viaduktbrücken über dem Fluss -->
+      <g fill="#7d7469">
+        <rect x="104" y="453" width="6" height="38"/>
+        <rect x="136" y="453" width="6" height="38"/>
+        <rect x="286" y="762" width="38" height="6"/>
+        <rect x="286" y="794" width="38" height="6"/>
+      </g>
+      <text x="336" y="808" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#a49e8e">Viadukt</text>
+
+      <!-- Schattenbahnhof unter dem Dorf (Ebene -1) -->
+      <rect x="430" y="230" width="430" height="160" rx="10" fill="none" stroke="#c8bd9c" stroke-width="2" stroke-dasharray="8 7" opacity=".55"/>
+      <text x="645" y="414" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="14" letter-spacing="2" fill="#c8bd9c" opacity=".85">SCHATTENBAHNHOF · EBENE −1</text>
 
       <!-- Bahnhof an der Nordwand -->
       <rect x="420" y="140" width="220" height="14" rx="4" fill="#8a8577"/>
@@ -414,6 +432,8 @@
       <li><strong>Mindestradius:</strong> Der gezeichnete Ring fährt mit ca. 36 cm (R1). Für lange Reisezugwagen besser 43 cm und mehr einplanen — die Ecken geben das her.</li>
       <li><strong>Zugriffstiefe:</strong> Die Flächen links und rechts des Einstiegs sind stellenweise tiefer als 75 cm. Dort Serviceluken oder offene Gestaltung (Wiesen statt Bebauung) vorsehen.</li>
       <li><strong>Kehrschleife im Berg:</strong> Die Nordwest-Ecke verschwindet im Tunnel — gut für die Optik, aber Revisionsöffnung von unten nicht vergessen.</li>
+      <li><strong>Ebenen wie bei brima:</strong> Hauptebene auf ca. 105 cm in offener Rahmenbauweise, darunter der Schattenbahnhof (Ebene −1, mind. 25 cm Durchgriff) unter dem Dorf. Zufahrt über eine Gleiswendel unter dem Tunnelberg.</li>
+      <li><strong>Kulisse &amp; Motive:</strong> Panorama-Hintergrund an Nord- und Ostwand, Viadukt über dem Flusslauf im Südwesten — die brima-Zutaten, die die Tiefe in den Raum bringen.</li>
       <li><strong>Ausbaustufe 2:</strong> Regalanlage (T 40 cm) im Gang UG 0.2, angebunden über einen Wanddurchbruch links der Tür. Der Tisch aus der Skizze bleibt als Arbeitsplatz frei.</li>
       <li><strong>Raumklima:</strong> Beide Räume sind Beton roh (FB −2,82 bzw. −2,59) — vor dem Anlagenbau Boden versiegeln und auf Feuchte prüfen.</li>
     </ul>
