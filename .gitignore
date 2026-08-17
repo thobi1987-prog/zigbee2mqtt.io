@@ -1,8 +1,6 @@
-node_modules
-.temp
-.cache
-dist
+__pycache__/
+*.pyc
+*.db
+venv/
 .idea
 .DS_Store
-docgen/missing-device-images/
-venv/

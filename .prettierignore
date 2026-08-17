@@ -1,5 +1,0 @@
-docs/devices/*.md
-public/images/**/*
-docs/images/**/*
-pnpm-lock.yaml
-docs/externalConvertersExample/**/*
