@@ -38,7 +38,6 @@ Alle Endpunkte (GET = lesen, POST = ausführen; Parameter als Query-String):
 Standalone zum Testen (ohne lichtapp.py):  python3 z2m_api.py [config.json] [port]
 """
 import json
-import time
 import urllib.parse
 
 from z2m import Zigbee2MQTT, Z2MError, MqttError
@@ -67,8 +66,8 @@ def _compact_device(d, z2m):
         "description": definition.get("description") or d.get("description"),
         "power_source": d.get("power_source"),
         "interview_state": d.get("interview_state"),
-        "available": z2m.availability.get(name),
-        "state": z2m.states.get(name),
+        "available": z2m.available(name),
+        "state": z2m.state(name),
     }
 
 
@@ -121,15 +120,13 @@ class Z2MApi:
     def get_state(self, params):
         name = self._name(params)
         if _first(params, "refresh") in ("1", "true", "yes"):
-            self.z2m.get(name)
-            deadline = time.time() + float(_first(params, "wait", 2))
-            before = self.z2m.last_message_at
-            while time.time() < deadline and self.z2m.last_message_at == before:
-                time.sleep(0.05)
-        st = self.z2m.state(name)
+            st = self.z2m.refresh_state(name, timeout=float(_first(params, "wait", 2)))
+        else:
+            st = self.z2m.state(name)
         if st is None:
             return 404, {"ok": False, "error": "Kein Zustand bekannt für '%s'" % name}
-        return {"name": name, "state": st, "available": self.z2m.availability.get(name)}
+        return {"name": name, "friendly_name": self.z2m.friendly_name(name), "state": st,
+                "available": self.z2m.available(name)}
 
     def get_events(self, params):
         return {"events": list(self.z2m.events), "warnings": list(self.z2m.logs)}

@@ -404,6 +404,22 @@ class TestMqtt(Z2MTestCase):
         with self.assertRaises(Z2MError):
             normalize_hex("blau")
 
+    def test_start_after_failed_connect_and_after_stop(self):
+        z = Zigbee2MQTT(dict(CFG, mqtt_port=1), client_id="lifecycle-%d" % (time.time_ns() % 100000))
+        with self.assertRaises(MqttError):
+            z.start()                                  # Broker nicht erreichbar → nichts gestartet
+        self.assertFalse(z.mqtt._running)
+        z.mqtt.port = self.broker.port
+        z.start()                                      # zweiter Versuch muss funktionieren
+        self.addCleanup(z.stop)
+        self.assertTrue(wait_for(lambda: z.info and z.bridge_state == "online"))
+        z.stop()
+        self.assertFalse(z.connected)
+        z.start()                                      # nach stop() wieder startbar …
+        self.assertTrue(z.connected)
+        self.broker.kick(z.mqtt.client_id)             # … inklusive automatischem Reconnect
+        self.assertTrue(wait_for(lambda: z.connected and z.mqtt.connect_count == 3, 8), "kein Reconnect nach stop()/start()")
+
     def test_reconnect_after_kick(self):
         z = self.make_client()
         cid = z.mqtt.client_id
@@ -479,6 +495,21 @@ class TestZigbee2MQTT(Z2MTestCase):
         # Zustand wiederherstellen
         z.light_set("ThomysHomeBar", state="ON", brightness=200)
         self.assertTrue(wait_for(lambda: z.state("ThomysHomeBar").get("brightness") == 200))
+
+    def test_refresh_state_waits_for_this_device(self):
+        z = self.make_client()
+        st = z.refresh_state("ThomysHomeBar", timeout=2)
+        self.assertEqual(st["state"], self.fake.states["ThomysHomeBar"]["state"])
+        self.assertIn("ThomysHomeBar", z.state_updated_at)
+        self.assertIsNotNone(z.refresh_state("0xa4c138aaaaaaaaaa", timeout=2))   # per IEEE-Adresse
+        # Unbekanntes Gerät: Z2M antwortet nur mit einem Log-Fehler (fremder Verkehr) → volles Timeout, None
+        t0 = time.time()
+        self.assertIsNone(z.refresh_state("gibtsnicht", timeout=0.5))
+        self.assertGreaterEqual(time.time() - t0, 0.5)
+        self.assertTrue(wait_for(lambda: any("gibtsnicht" in l.get("message", "") for l in z.logs)))
+        self.assertEqual(z.available("0xa4c138aaaaaaaaaa"), "online")
+        self.assertEqual(z.friendly_name("0xa4c138aaaaaaaaaa"), "ThomysHomeBar")
+        self.assertEqual(z.friendly_name("unbekannt"), "unbekannt")
 
     def test_get(self):
         z = self.make_client()
@@ -566,6 +597,12 @@ class TestApi(Z2MTestCase):
         status, body = api.handle("GET", "/api/z2m/state", {"name": "ThomysHomeBar", "refresh": "1"})
         self.assertEqual(status, 200)
         self.assertEqual(body["result"]["state"]["state"], "ON")
+        status, body = api.handle("GET", "/api/z2m/state", {"name": "0xa4c138aaaaaaaaaa", "refresh": "1", "wait": "1"})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["result"]["friendly_name"], "ThomysHomeBar")
+        self.assertEqual(body["result"]["available"], "online")
+        status, body = api.handle("GET", "/api/z2m/devices", {})
+        self.assertEqual([d["available"] for d in body["result"] if d["friendly_name"] == "ThomysHomeBar"], ["online"])
         status, body = api.handle("GET", "/api/z2m/state", {"name": "unbekannt"})
         self.assertEqual(status, 404)
         status, body = api.handle("GET", "/api/z2m/state", {})
@@ -753,6 +790,25 @@ class TestHomeBrain(Z2MTestCase):
         self.assertTrue(wait_for(lambda: z.state("ThomysHomeBar").get("state") == "OFF"))
         hb.execute([{"action": "power", "target": "all", "on": True}])
         self.assertTrue(wait_for(lambda: z.state("ThomysHomeBar").get("state") == "ON"))
+
+    def test_all_off_except_kitchen(self):
+        hb, agent, z = self.brain()
+        self.assertEqual(hb._rules("alles aus ausser küche"), [{"action": "power", "target": "all", "on": False, "except": ["küche"]}])
+        self.assertEqual(hb._rules("alles grün ausser küche"), [{"action": "color", "target": "all", "color": "grün", "except": ["küche"]}])
+        self.assertEqual(hb._rules("alles aus"), [{"action": "power", "target": "all", "on": False}])
+        n_bar, n_panel = len(self.sets("ThomysHomeBar")), len(self.sets("0x001788010efccbdb"))
+        self.assertEqual(hb.handle("alles aus ausser küche"), "✓ all aus (ausser küche)")
+        self.assertEqual(agent.ha.calls, [("light_off", ["light.stube", "light.flur_flur", "light.65pus8000_12_ambilight"], {"transition": 2})])
+        self.assertTrue(wait_for(lambda: len(self.sets("ThomysHomeBar")) == n_bar + 1 and len(self.sets("0x001788010efccbdb")) == n_panel + 1))
+        hb.execute([{"action": "power", "target": "all", "on": True}])
+
+    def test_all_brightness_except_kitchen(self):
+        hb, agent, z = self.brain()
+        done = hb.execute([{"action": "brightness", "target": "all", "pct": 30, "except": ["küche"]}])
+        self.assertEqual(done, ["all 30% (ausser küche)"])
+        self.assertEqual(agent.ha.calls, [("light", ["light.stube", "light.65pus8000_12_ambilight"], {"brightness_pct": 30, "transition": 2})])
+        self.assertTrue(wait_for(lambda: self.sets("ThomysHomeBar")[-1:] == [{"state": "ON", "brightness": 76, "transition": 2}]))
+        hb.execute([{"action": "brightness", "target": "ThomysHomeBar", "pct": 79}])
 
     def test_all_off_with_ha_down_still_switches_zigbee(self):
         hb, agent, z = self.brain(ha_down=True)

@@ -149,6 +149,10 @@ class HomeBrain:
                 return [{"action": "scene", "name": s["name"]}]
         if any(w in t for w in ["aus", "ausschalten", "aus machen", "licht aus"]) and "ausser" not in t and "außer" not in t:
             return [{"action": "power", "target": "all", "on": False}]
+        # "alles aus ausser küche": eigenständiges Wort "aus" VOR dem "ausser" → Ausschalten mit Ausnahmen
+        if ("ausser" in t or "außer" in t) and re.search(r'\b(aus|ausschalten|ausmachen)\b', re.split(r'\bausser\b|\baußer\b', t)[0]):
+            exc = re.findall(r'(?:ausser|außer)\s+([a-zäöüß]+)', t)
+            return [{"action": "power", "target": "all", "on": False, "except": exc}]
         for kw, name in [("abend", "abend"), ("gemütlich", "abend"), ("hell", "hell"),
                          ("arbeitslicht", "hell"), ("brasil", "brasilien"), ("party", "brasilien")]:
             if kw in t:
@@ -176,6 +180,12 @@ class HomeBrain:
         return []
 
     # ---------- Ausführung ----------
+    @staticmethod
+    def _ha_excluded(entity_id, exclude=()):
+        """True, wenn die HA-Entität zu einem Raum aus der 'except'-Liste gehört."""
+        ex_prefix = [RAEUME.get(e.lower(), "") for e in exclude or ()]
+        return any(entity_id.startswith(p) for p in ex_prefix if p)
+
     def _entities(self, target, exclude=()):
         """Ziel -> Liste von HA-Entitäten (nur RGB-fähige, für Farbe)."""
         states = self.a.ha.states()
@@ -183,13 +193,12 @@ class HomeBrain:
             cm = s["attributes"].get("supported_color_modes") or []
             return any(m in cm for m in ("xy", "hs", "rgb"))
         if target in ("all", "alles"):
-            ex_prefix = [RAEUME.get(e.lower(), "") for e in exclude]
             out = []
             for s in states:
                 e = s["entity_id"]
                 if not e.startswith("light.") or s["state"] == "unavailable": continue
                 if "ambilight" in e: continue
-                if any(e.startswith(p) for p in ex_prefix if p): continue
+                if self._ha_excluded(e, exclude): continue
                 if rgb_on(s): out.append(e)
             return out
         ent = RAEUME.get(target.lower())
@@ -305,14 +314,16 @@ class HomeBrain:
                         elif typ == "brightness":
                             if tgt in ("all", "alles"):
                                 ents = [s["entity_id"] for s in self.a.ha.states()
-                                        if s["entity_id"].startswith("light.") and s["state"] == "on"]
+                                        if s["entity_id"].startswith("light.") and s["state"] == "on"
+                                        and not self._ha_excluded(s["entity_id"], exc)]
                             else:
                                 ents = self._ha_targets(tgt) or ([RAEUME[tgt.lower()]] if tgt.lower() in RAEUME else [])
                             if ents: self.a.ha.light(ents, brightness_pct=pct, transition=2)
                         else:
                             if tgt in ("all", "alles"):
                                 ents = [s["entity_id"] for s in self.a.ha.states()
-                                        if s["entity_id"].startswith("light.") and s["state"] != "unavailable"]
+                                        if s["entity_id"].startswith("light.") and s["state"] != "unavailable"
+                                        and not self._ha_excluded(s["entity_id"], exc)]
                             else:
                                 ents = self._ha_targets(tgt)
                             if ents:
@@ -336,9 +347,9 @@ class HomeBrain:
                     elif typ == "color":
                         done.append(f"{tgt} {act.get('color')}" + (f" (ausser {','.join(exc)})" if exc else ""))
                     elif typ == "brightness":
-                        done.append(f"{tgt} {pct}%")
+                        done.append(f"{tgt} {pct}%" + (f" (ausser {','.join(exc)})" if exc else ""))
                     else:
-                        done.append(f"{tgt} {'an' if on else 'aus'}")
+                        done.append(f"{tgt} {'an' if on else 'aus'}" + (f" (ausser {','.join(exc)})" if exc else ""))
                     if ha_err is not None:
                         done.append(f"[HA-Fehler: {ha_err}]")
                 elif typ == "lock":

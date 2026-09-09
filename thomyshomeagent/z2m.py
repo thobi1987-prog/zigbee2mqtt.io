@@ -112,7 +112,8 @@ class MiniMqtt:
         self.on_message = on_message
         self.on_connect = on_connect
         self.on_disconnect = on_disconnect
-        self.auto_reconnect = reconnect
+        self._reconnect_wanted = bool(reconnect)   # konfigurierter Wunsch (stop() schaltet nur temporär ab)
+        self.auto_reconnect = bool(reconnect)
         self.timeout = timeout
 
         self._sock = None
@@ -173,12 +174,18 @@ class MiniMqtt:
                 self.last_error = "on_connect: %s" % e
 
     def start(self, block_until_connected=True):
-        """Startet Leser- und Keepalive-Thread; verbindet (mit Reconnect-Schleife)."""
+        """Startet Leser- und Keepalive-Thread; verbindet (mit Reconnect-Schleife).
+
+        Schlägt der synchrone erste Verbindungsversuch fehl, wird nichts gestartet und
+        start() kann später erneut aufgerufen werden. Nach stop() ist start() ebenfalls
+        wieder möglich (inkl. automatischem Reconnect).
+        """
         if self._running:
             return
-        self._running = True
+        self.auto_reconnect = self._reconnect_wanted
         if block_until_connected:
             self.connect()  # erster Verbindungsversuch synchron → Fehler sofort sichtbar
+        self._running = True
         t1 = threading.Thread(target=self._reader_loop, name="mqtt-reader", daemon=True)
         t2 = threading.Thread(target=self._keepalive_loop, name="mqtt-keepalive", daemon=True)
         self._threads = [t1, t2]
@@ -187,7 +194,7 @@ class MiniMqtt:
 
     def stop(self):
         self._running = False
-        self.auto_reconnect = False
+        self.auto_reconnect = False       # während des Herunterfahrens nicht neu verbinden
         sock = self._sock
         if sock is not None:
             try:
@@ -199,6 +206,7 @@ class MiniMqtt:
         for t in self._threads:
             if t is not threading.current_thread():
                 t.join(timeout=2)
+        self._threads = []
 
     def _close(self):
         self.connected = False
@@ -407,6 +415,7 @@ class Zigbee2MQTT:
         self.devices = []
         self.groups = []
         self.states = {}              # friendly_name -> letzter Zustand (dict)
+        self.state_updated_at = {}    # friendly_name -> Zeitpunkt des letzten Zustands
         self.availability = {}        # friendly_name -> "online"/"offline"
         self.events = deque(maxlen=50)
         self.logs = deque(maxlen=50)  # nur warning/error
@@ -461,6 +470,10 @@ class Zigbee2MQTT:
         if not topic.startswith(prefix):
             return
         rest = topic[len(prefix):]
+        parts = rest.split("/")
+        # Eigene Steuer-Topics ignorieren (kommen wegen '#' auch bei uns an) — zählen nicht als Nachricht von Z2M
+        if not rest.startswith("bridge/") and ("set" in parts or "get" in parts):
+            return
         self.last_message_at = time.time()
         text = raw.decode("utf-8", "replace")
         data = None
@@ -473,10 +486,6 @@ class Zigbee2MQTT:
         if rest.startswith("bridge/"):
             self._on_bridge(rest[len("bridge/"):], data)
             return
-        # Eigene Steuer-Topics ignorieren (kommen wegen '#' auch bei uns an)
-        parts = rest.split("/")
-        if "set" in parts or "get" in parts:
-            return
         if parts[-1] == "availability" and len(parts) > 1:
             name = "/".join(parts[:-1])
             state = data.get("state") if isinstance(data, dict) else data
@@ -486,6 +495,7 @@ class Zigbee2MQTT:
         if isinstance(data, dict):
             with self._lock:
                 self.states[rest] = data
+                self.state_updated_at[rest] = time.time()
 
     def _on_bridge(self, sub, data):
         if sub == "state":
@@ -621,12 +631,40 @@ class Zigbee2MQTT:
                     return d
         return None
 
+    def friendly_name(self, name_or_ieee):
+        """friendly_name zu einem Gerät (IEEE-Adresse → friendly_name; sonst unverändert)."""
+        d = self.device(name_or_ieee)
+        return (d or {}).get("friendly_name") or name_or_ieee
+
     def state(self, name):
         """Letzter bekannter Zustand eines Geräts (friendly_name oder IEEE-Adresse)."""
-        d = self.device(name)
-        key = (d or {}).get("friendly_name") or name
+        key = self.friendly_name(name)
         with self._lock:
             return self.states.get(key) or self.states.get(name)
+
+    def available(self, name):
+        """Erreichbarkeit ('online'/'offline'/None) — auch per IEEE-Adresse."""
+        key = self.friendly_name(name)
+        with self._lock:
+            return self.availability.get(key, self.availability.get(name))
+
+    def refresh_state(self, name, attributes=("state",), timeout=2.0):
+        """Sendet /get und wartet, bis für DIESES Gerät ein neuer Zustand eintrifft.
+
+        Gibt den (ggf. aktualisierten) Zustand zurück, None wenn keiner bekannt ist.
+        Andere MQTT-Nachrichten (Log, andere Geräte, eigenes /get-Echo) beenden das Warten nicht.
+        """
+        key = self.friendly_name(name)
+        with self._lock:
+            before = self.state_updated_at.get(key)
+        self.get(name, attributes)
+        deadline = time.time() + float(timeout)
+        while time.time() < deadline:
+            with self._lock:
+                if self.state_updated_at.get(key) != before:
+                    break
+            time.sleep(0.05)
+        return self.state(name)
 
     def lights(self):
         """Alle Geräte mit einem 'light'-Expose (nur unterstützte, nicht deaktivierte)."""
