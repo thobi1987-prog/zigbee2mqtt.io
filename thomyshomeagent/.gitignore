@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+# echte Zugangsdaten nie einchecken (config.example.json ist die Vorlage)
+config.json
