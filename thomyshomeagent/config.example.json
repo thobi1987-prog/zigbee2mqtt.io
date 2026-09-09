@@ -1,0 +1,15 @@
+{
+    "ha_url": "http://192.168.1.87:8123",
+    "ha_token": "<Home-Assistant-Long-Lived-Token>",
+    "mqtt_host": "192.168.1.45",
+    "mqtt_port": 1883,
+    "mqtt_user": "<MQTT-Benutzer des SMHUB-Brokers>",
+    "mqtt_pass": "<MQTT-Passwort>",
+    "z2m_base": "zigbee2mqtt",
+    "z2m_expected_version": "2.13.0",
+    "z2m_frontend_url": "http://192.168.1.45:8080",
+    "bar": "ThomysHomeBar",
+    "panel": "0x001788010efccbdb",
+    "ambilight": "light.65pus8000_12_ambilight",
+    "nuki_base": "nuki/4BCE74DF"
+}
