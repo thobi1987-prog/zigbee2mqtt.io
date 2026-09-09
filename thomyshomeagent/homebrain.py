@@ -169,7 +169,7 @@ class HomeBrain:
                     target = r; break
             # Zigbee-Leuchten aus Zigbee2MQTT (Synonyme + friendly_names), längste zuerst
             for z in sorted(set(self._z2m_synonyms()) | set(self._z2m_light_names()), key=len, reverse=True):
-                if z != "bar" and z in t_main:
+                if z != "bar" and re.search(r'(?<!\w)' + re.escape(z) + r'(?!\w)', t_main):   # nur ganze Wörter
                     target = z; break
         if "bar" in t_main.split():
             target = "bar"
@@ -312,12 +312,11 @@ class HomeBrain:
                             if ents:
                                 self.a.ha.light(ents, rgb_color=list(_rgb(hexc)), brightness=180, transition=2)
                         elif typ == "brightness":
-                            if tgt in ("all", "alles"):
+                            ents = self._ha_targets(tgt, exc) or ([RAEUME[tgt.lower()]] if tgt.lower() in RAEUME else [])
+                            if not ents and tgt in ("all", "alles"):     # wie im Original: erst RGB-Lichter, sonst alle eingeschalteten
                                 ents = [s["entity_id"] for s in self.a.ha.states()
                                         if s["entity_id"].startswith("light.") and s["state"] == "on"
                                         and not self._ha_excluded(s["entity_id"], exc)]
-                            else:
-                                ents = self._ha_targets(tgt) or ([RAEUME[tgt.lower()]] if tgt.lower() in RAEUME else [])
                             if ents: self.a.ha.light(ents, brightness_pct=pct, transition=2)
                         else:
                             if tgt in ("all", "alles"):
@@ -345,7 +344,8 @@ class HomeBrain:
                     if not ents and not znames and ha_err is None:
                         done.append(f"'{tgt}' unbekannt")
                     elif typ == "color":
-                        done.append(f"{tgt} {act.get('color')}" + (f" (ausser {','.join(exc)})" if exc else ""))
+                        label = "Bar" if tgt == "bar" else tgt
+                        done.append(f"{label} {act.get('color')}" + (f" (ausser {','.join(exc)})" if exc else ""))
                     elif typ == "brightness":
                         done.append(f"{tgt} {pct}%" + (f" (ausser {','.join(exc)})" if exc else ""))
                     else:

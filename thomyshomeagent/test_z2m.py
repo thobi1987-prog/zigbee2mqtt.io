@@ -41,6 +41,7 @@ class FakeBroker:
         self.port = self.srv.getsockname()[1]
         self.clients = {}          # sock -> {"subs": [...], "id": str, "lock": Lock}
         self.retained = {}
+        self.reject = set()        # Topic-Filter, die der Broker mit rc=0x80 ablehnt (ACL-Simulation)
         self.received = []         # (topic, payload_bytes, retain)
         self.lock = threading.Lock()
         self.running = False
@@ -163,12 +164,13 @@ class FakeBroker:
                     while pos < len(body):
                         flen = struct.unpack("!H", body[pos:pos + 2])[0]; pos += 2
                         filters.append(body[pos:pos + flen].decode()); pos += flen + 1
-                    entry["subs"].extend(filters)
-                    self._send(sock, bytes([0x90, 2 + len(filters)]) + pid + bytes([0] * len(filters)))
+                    entry["subs"].extend(f for f in filters if f not in self.reject)
+                    self._send(sock, bytes([0x90, 2 + len(filters)]) + pid + bytes([0x80 if f in self.reject else 0 for f in filters]))
+                    accepted = [f for f in filters if f not in self.reject]
                     with self.lock:
                         retained = list(self.retained.items())
                     for topic, payload in retained:
-                        if any(topic_matches(f, topic) for f in filters):
+                        if any(topic_matches(f, topic) for f in accepted):
                             self._send(sock, self._pub_packet(topic, payload, True))
                 elif ptype == 10:   # UNSUBSCRIBE
                     pid = body[:2]
@@ -419,6 +421,22 @@ class TestMqtt(Z2MTestCase):
         self.assertTrue(z.connected)
         self.broker.kick(z.mqtt.client_id)             # … inklusive automatischem Reconnect
         self.assertTrue(wait_for(lambda: z.connected and z.mqtt.connect_count == 3, 8), "kein Reconnect nach stop()/start()")
+
+    def test_rejected_subscription_is_reported(self):
+        self.broker.reject.add("zigbee2mqtt/#")
+        try:
+            z = Zigbee2MQTT(dict(CFG, mqtt_port=self.broker.port), client_id="acl-%d" % (time.time_ns() % 100000))
+            z.start()
+            self.addCleanup(z.stop)
+            self.assertTrue(wait_for(lambda: z.mqtt.rejected_subscriptions == ["zigbee2mqtt/#"]))
+            self.assertIn("abgelehnt", z.mqtt.last_error)
+            self.assertIn("abgelehnt", z.summary()["mqtt_error"])
+            time.sleep(0.3)
+            self.assertEqual(z.devices, [])                    # kein Abo → kein Cache, aber sichtbarer Fehler
+        finally:
+            self.broker.reject.discard("zigbee2mqtt/#")
+        z2 = self.make_client()                                # normale Abos sind unbeeinträchtigt
+        self.assertEqual(z2.mqtt.rejected_subscriptions, [])
 
     def test_reconnect_after_kick(self):
         z = self.make_client()
@@ -746,7 +764,7 @@ class TestHomeBrain(Z2MTestCase):
 
     def test_bar_color_without_ha(self):
         hb, agent, z = self.brain(ha_down=True)
-        self.assertEqual(hb.handle("bar auf blau"), "✓ bar blau")
+        self.assertEqual(hb.handle("bar auf blau"), "✓ Bar blau")
         self.assertEqual(agent.bar_calls, ["#0033FF"])
         self.assertEqual(agent.ha.calls, [])
 
@@ -806,9 +824,32 @@ class TestHomeBrain(Z2MTestCase):
         hb, agent, z = self.brain()
         done = hb.execute([{"action": "brightness", "target": "all", "pct": 30, "except": ["küche"]}])
         self.assertEqual(done, ["all 30% (ausser küche)"])
-        self.assertEqual(agent.ha.calls, [("light", ["light.stube", "light.65pus8000_12_ambilight"], {"brightness_pct": 30, "transition": 2})])
+        # wie im Original: RGB-fähige Lichter (ohne Ambilight), Küche ausgenommen
+        self.assertEqual(agent.ha.calls, [("light", ["light.stube"], {"brightness_pct": 30, "transition": 2})])
         self.assertTrue(wait_for(lambda: self.sets("ThomysHomeBar")[-1:] == [{"state": "ON", "brightness": 76, "transition": 2}]))
         hb.execute([{"action": "brightness", "target": "ThomysHomeBar", "pct": 79}])
+
+    def test_all_brightness_matches_original_semantics(self):
+        hb, agent, z = self.brain()
+        hb.execute([{"action": "brightness", "target": "all", "pct": 40}])
+        self.assertEqual(agent.ha.calls, [("light", ["light.stube", "light.kochinsel_kochinsel"], {"brightness_pct": 40, "transition": 2})])
+        # keine RGB-Lichter mehr → Original-Fallback: alle eingeschalteten Lichter
+        agent.ha.calls.clear()
+        for st in agent.ha._states:
+            st["attributes"]["supported_color_modes"] = ["brightness"]
+        hb.execute([{"action": "brightness", "target": "all", "pct": 40}])
+        self.assertEqual(agent.ha.calls, [("light", ["light.stube", "light.kochinsel_kochinsel", "light.65pus8000_12_ambilight"], {"brightness_pct": 40, "transition": 2})])
+        hb.execute([{"action": "brightness", "target": "ThomysHomeBar", "pct": 79}])
+
+    def test_zigbee_names_match_whole_words_only(self):
+        hb, agent, z = self.brain()
+        homebrain.Z2M_GERAETE["bad"] = "@panel"          # Synonym, das in "badezimmer"/"bad" steckt
+        try:
+            self.assertEqual(hb._rules("bad rot")[0]["target"], "bad")
+            self.assertEqual(hb._rules("dusche rot")[0]["target"], "dusche")   # kein Zigbee-Treffer in "dusche"
+            self.assertEqual(hb._rules("wandpanel rot")[0]["target"], "wandpanel")
+        finally:
+            del homebrain.Z2M_GERAETE["bad"]
 
     def test_all_off_with_ha_down_still_switches_zigbee(self):
         hb, agent, z = self.brain(ha_down=True)
@@ -847,7 +888,7 @@ class TestHomeBrain(Z2MTestCase):
     def test_without_z2m_behaves_like_before(self):
         hb, agent, z = self.brain(with_z2m=False)
         self.assertIsNone(hb.z2m)
-        self.assertEqual(hb.handle("bar auf blau"), "✓ bar blau")
+        self.assertEqual(hb.handle("bar auf blau"), "✓ Bar blau")
         self.assertEqual(agent.bar_calls, ["#0033FF"])
         self.assertEqual(hb.handle("alles aus"), "✓ all aus")
         self.assertEqual(agent.z2m_set_calls, [("ThomysHomeBar", {"state": "OFF", "transition": 2})])

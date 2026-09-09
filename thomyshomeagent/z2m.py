@@ -119,6 +119,8 @@ class MiniMqtt:
         self._sock = None
         self._send_lock = threading.Lock()
         self._subs = {}          # topic -> qos
+        self._pending_subs = {}  # packet id -> topic (bis SUBACK)
+        self.rejected_subscriptions = []
         self._pid = 0
         self._running = False
         self._threads = []
@@ -259,7 +261,9 @@ class MiniMqtt:
             self._send_subscribe(topic, qos)
 
     def _send_subscribe(self, topic, qos):
-        var = struct.pack("!H", self._next_pid())
+        pid = self._next_pid()
+        self._pending_subs[pid] = topic
+        var = struct.pack("!H", pid)
         payload = _encode_str(topic) + bytes([qos])
         self._send(bytes([(_SUBSCRIBE << 4) | 0x02]) + _encode_len(len(var) + len(payload)) + var + payload)
 
@@ -326,7 +330,15 @@ class MiniMqtt:
             self._last_rx = time.time()
             if ptype == _PUBLISH:
                 self._handle_publish(flags, body)
-            # SUBACK / PINGRESP / UNSUBACK / PUBACK: nur als "Lebenszeichen" relevant
+            elif ptype == _SUBACK and len(body) >= 3:
+                pid = struct.unpack("!H", body[:2])[0]
+                topic = self._pending_subs.pop(pid, "?")
+                if any(rc == 0x80 for rc in body[2:]):
+                    # Broker lehnt das Abo ab (meist ACL) — sonst bliebe der Cache stumm und leer
+                    if topic not in self.rejected_subscriptions:
+                        self.rejected_subscriptions.append(topic)
+                    self.last_error = "Abo '%s' vom Broker abgelehnt (rc=0x80) — ACL/Rechte des MQTT-Benutzers prüfen" % topic
+            # PINGRESP / UNSUBACK / PUBACK: nur als "Lebenszeichen" relevant
 
     def _handle_publish(self, flags, body):
         qos = (flags >> 1) & 0x03
