@@ -538,8 +538,15 @@ class TestZigbee2MQTT(Z2MTestCase):
 
     def test_request_permit_join(self):
         z = self.make_client()
+        self.assertIsNone(z.permit_join_remaining_sec())
         self.assertEqual(z.permit_join(120), {"time": 120})
         self.assertTrue(wait_for(lambda: z.info.get("permit_join") is True))
+        self.assertTrue(100 <= z.permit_join_remaining_sec() <= 120)          # FakeZ2M: Sekunden
+        info_ms = dict(z.info, permit_join_end=int((time.time() + 90) * 1000))  # neuere Z2M: Millisekunden
+        self.fake.mqtt.publish("zigbee2mqtt/bridge/info", info_ms, retain=True)
+        self.assertTrue(wait_for(lambda: z.info.get("permit_join_end") == info_ms["permit_join_end"]))
+        self.assertTrue(80 <= z.permit_join_remaining_sec() <= 90)
+        self.assertEqual(z.summary()["permit_join_remaining_sec"], z.permit_join_remaining_sec())
         self.assertEqual(z.permit_join(0), {"time": 0})
         self.assertTrue(wait_for(lambda: z.info.get("permit_join") is False))
         self.assertEqual(self.fake.requests[-1][1]["time"], 0)
@@ -629,7 +636,27 @@ class TestApi(Z2MTestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["result"]["sent"], {"state": "ON", "brightness": 127, "color": {"hex": "#00C000"}, "transition": 1.0})
         status, body = api.handle("POST", "/api/z2m/set", {"name": "ThomysHomeBar", "hex": "keinefarbe"})
-        self.assertEqual(status, 502)
+        self.assertEqual(status, 400)
+        for bad in ({"name": "ThomysHomeBar", "brightness": "inf"}, {"name": "ThomysHomeBar", "brightness": "150"},
+                    {"name": "ThomysHomeBar", "brightness": "1e999"}, {"name": "ThomysHomeBar", "transition": "abc"},
+                    {"name": "ThomysHomeBar", "state": "vielleicht"}, {"name": "ThomysHomeBar"},
+                    {"name": "a/+", "hex": "#ff0000"}, {"name": "#", "hex": "#ff0000"}, {"name": "/x", "hex": "#ff0000"}):
+            status, body = api.handle("POST", "/api/z2m/set", bad)
+            self.assertEqual(status, 400, bad)
+            self.assertFalse(body["ok"])
+        status, body = api.handle("POST", "/api/z2m/permit_join", {"time": "300"})
+        self.assertEqual(status, 400)
+        status, body = api.handle("POST", "/api/z2m/rename", {"from": "a/#", "to": "b"})
+        self.assertEqual(status, 400)
+        status, body = api.handle("PUT", "/api/z2m/info", {})
+        self.assertEqual(status, 405)
+        status, body = api.handle("__INIT", "/api/z2m/_", {"x": 1})
+        self.assertEqual(status, 405)
+        self.assertIs(api.z2m, z)                                  # Instanz unangetastet
+        self.assertEqual(api._wait({"wait": "99999"}), 10.0)      # wait ist begrenzt (HTTP-Server blockiert)
+        self.assertEqual(api._wait({}), 2.0)
+        with self.assertRaises(Z2MError):
+            z.set("a/+", {"state": "ON"})
         status, body = api.handle("POST", "/api/z2m/toggle", {"name": "ThomysHomeBar"})
         self.assertEqual(body["result"]["sent"], {"state": "TOGGLE"})
         status, body = api.handle("POST", "/api/z2m/permit_join", {"time": "60"})
@@ -666,6 +693,8 @@ class TestApi(Z2MTestCase):
         page = urllib.request.urlopen("http://127.0.0.1:18098/", timeout=3).read().decode()
         self.assertIn("Zigbee2MQTT in ThomysHomeAgent", page)
         self.assertNotIn("%%", page)
+        self.assertNotIn("onclick", page)                       # keine Inline-Handler mit Gerätenamen
+        self.assertIn('data-name', page)
 
 
 def _http_ok(url):

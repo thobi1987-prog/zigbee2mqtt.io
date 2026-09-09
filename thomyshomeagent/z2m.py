@@ -590,13 +590,23 @@ class Zigbee2MQTT:
         return self.request("device/options", {"id": name, "options": options})
 
     # ---------- Geräte steuern ----------
+    @staticmethod
+    def _topic_name(name):
+        """friendly_name/IEEE für ein Topic prüfen: keine MQTT-Wildcards, keine leeren Segmente."""
+        name = str(name)
+        if not name or any(c in name for c in "+#\x00") or name.startswith("/") or name.endswith("/") or "//" in name:
+            raise Z2MError("Ungültiger Gerätename %r" % name)
+        return name
+
     def set(self, name, payload):
+        name = self._topic_name(name)
         try:
             self.mqtt.publish("%s/%s/set" % (self.base, name), payload)
         except MqttError as e:
             raise Z2MError(str(e))
 
     def get(self, name, attributes=("state",)):
+        name = self._topic_name(name)
         try:
             self.mqtt.publish("%s/%s/get" % (self.base, name), {a: "" for a in attributes})
         except MqttError as e:
@@ -735,6 +745,22 @@ class Zigbee2MQTT:
         # Zigbee2MQTT läuft üblicherweise auf demselben Host wie der Broker (mqtt://localhost)
         return "%s://%s:%s%s" % (scheme, self.mqtt.host, port, base_url)
 
+    def permit_join_remaining_sec(self):
+        """Restzeit des offenen Anlern-Fensters in Sekunden (None wenn geschlossen).
+
+        Zigbee2MQTT liefert `permit_join_end` als Unix-Zeit — je nach Version in Sekunden
+        oder Millisekunden; beides wird erkannt.
+        """
+        end = self.info.get("permit_join_end")
+        if not end or not self.info.get("permit_join"):
+            return None
+        try:
+            end = float(end)
+        except (TypeError, ValueError):
+            return None
+        end_s = end / 1000.0 if end > 1e11 else end
+        return max(0, int(round(end_s - time.time())))
+
     def summary(self):
         info, health = self.info, self.health
         coord = info.get("coordinator") or {}
@@ -773,6 +799,7 @@ class Zigbee2MQTT:
             "log_level": info.get("log_level"),
             "permit_join": info.get("permit_join"),
             "permit_join_end": info.get("permit_join_end"),
+            "permit_join_remaining_sec": self.permit_join_remaining_sec(),
             "restart_required": info.get("restart_required"),
             "frontend_url": self.frontend_url(),
             "health": {

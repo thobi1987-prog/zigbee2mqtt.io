@@ -40,7 +40,7 @@ Standalone zum Testen (ohne lichtapp.py):  python3 z2m_api.py [config.json] [por
 import json
 import urllib.parse
 
-from z2m import Zigbee2MQTT, Z2MError, MqttError
+from z2m import Zigbee2MQTT, Z2MError, MqttError, normalize_hex
 
 PREFIX = "/api/z2m/"
 
@@ -71,7 +71,42 @@ def _compact_device(d, z2m):
     }
 
 
+def _check_name(name):
+    """Gerätename für MQTT-Topics prüfen: keine Wildcards, keine leeren Segmente."""
+    name = str(name)
+    if not name or any(c in name for c in "+#\x00") or name.startswith("/") or name.endswith("/") or "//" in name:
+        raise ValueError("Ungültiger Gerätename %r" % name)
+    return name
+
+
+def _num(params, key, lo, hi, cast=float):
+    """Zahl aus den Query-Parametern lesen und auf [lo, hi] prüfen (None wenn nicht angegeben)."""
+    v = _first(params, key)
+    if v in (None, ""):
+        return None
+    try:
+        x = cast(str(v).strip())
+    except (ValueError, TypeError, OverflowError):
+        raise ValueError("%s muss eine Zahl sein" % key)
+    if isinstance(x, float) and (x != x or x in (float("inf"), float("-inf"))):
+        raise ValueError("%s muss eine endliche Zahl sein" % key)
+    if not (lo <= x <= hi):
+        raise ValueError("%s muss zwischen %s und %s liegen" % (key, lo, hi))
+    return x
+
+
 class Z2MApi:
+    GET_ROUTES = {
+        "info": "get_info", "status": "get_status", "health": "get_health", "devices": "get_devices",
+        "lights": "get_lights", "groups": "get_groups", "state": "get_state", "events": "get_events",
+    }
+    POST_ROUTES = {
+        "set": "post_set", "toggle": "post_toggle", "get": "post_get", "permit_join": "post_permit_join",
+        "health_check": "post_health_check", "coordinator_check": "post_coordinator_check",
+        "rename": "post_rename", "restart": "post_restart",
+    }
+    MAX_WAIT = 10.0   # Sekunden; blockiert den (einfädigen) HTTP-Server von lichtapp.py
+
     def __init__(self, z2m):
         self.z2m = z2m
 
@@ -83,20 +118,22 @@ class Z2MApi:
         action = path[len(PREFIX):].strip("/")
         params = params or {}
         method = (method or "GET").upper()
-        fn = getattr(self, "%s_%s" % (method.lower(), action), None)
-        if fn is None:
-            if getattr(self, "get_%s" % action, None) or getattr(self, "post_%s" % action, None):
+        if method not in ("GET", "POST"):
+            return 405, {"ok": False, "error": "Methode %s nicht erlaubt" % method}
+        table, other = (self.GET_ROUTES, self.POST_ROUTES) if method == "GET" else (self.POST_ROUTES, self.GET_ROUTES)
+        if action not in table:
+            if action in other:
                 return 405, {"ok": False, "error": "Methode %s nicht erlaubt für %s" % (method, action)}
             return 404, {"ok": False, "error": "Unbekannter Endpunkt %s" % path}
         try:
-            result = fn(params)
+            result = getattr(self, table[action])(params)
             if isinstance(result, tuple):
                 return result
             return 200, {"ok": True, "result": result}
+        except (ValueError, TypeError, OverflowError) as e:
+            return 400, {"ok": False, "error": "Ungültiger Parameter: %s" % e}
         except (Z2MError, MqttError) as e:
             return 502, {"ok": False, "error": str(e)}
-        except ValueError as e:
-            return 400, {"ok": False, "error": "Ungültiger Parameter: %s" % e}
 
     # ---------- Lesen ----------
     def get_info(self, params):
@@ -120,7 +157,7 @@ class Z2MApi:
     def get_state(self, params):
         name = self._name(params)
         if _first(params, "refresh") in ("1", "true", "yes"):
-            st = self.z2m.refresh_state(name, timeout=float(_first(params, "wait", 2)))
+            st = self.z2m.refresh_state(name, timeout=self._wait(params))
         else:
             st = self.z2m.state(name)
         if st is None:
@@ -135,32 +172,50 @@ class Z2MApi:
     def post_set(self, params):
         name = self._name(params)
         kwargs = {}
-        if _first(params, "hex"):
-            kwargs["hex_color"] = _first(params, "hex")
-        if _first(params, "brightness") not in (None, ""):
-            kwargs["brightness_pct"] = float(_first(params, "brightness"))
-        if _first(params, "state"):
-            kwargs["state"] = _first(params, "state")
-        if _first(params, "color_temp") not in (None, ""):
-            kwargs["color_temp"] = int(_first(params, "color_temp"))
-        if _first(params, "transition") not in (None, ""):
-            kwargs["transition"] = float(_first(params, "transition"))
+        hexc = _first(params, "hex")
+        if hexc:
+            try:
+                kwargs["hex_color"] = normalize_hex(hexc)
+            except Z2MError as e:
+                raise ValueError(str(e))
+        pct = _num(params, "brightness", 0, 100)
+        if pct is not None:
+            kwargs["brightness_pct"] = pct
+        state = _first(params, "state")
+        if state:
+            if str(state).upper() not in ("ON", "OFF", "TOGGLE"):
+                raise ValueError("state muss ON, OFF oder TOGGLE sein")
+            kwargs["state"] = str(state).upper()
+        ct = _num(params, "color_temp", 1, 65279, int)
+        if ct is not None:
+            kwargs["color_temp"] = ct
+        tr = _num(params, "transition", 0, 3600)
+        if tr is not None:
+            kwargs["transition"] = tr
+        if not kwargs:
+            raise ValueError("nichts zu setzen — hex, brightness, state oder color_temp angeben")
         payload = self.z2m.light_set(name, **kwargs)
         return {"name": name, "sent": payload}
 
     def post_toggle(self, params):
         name = self._name(params)
-        return {"name": name, "sent": self.z2m.toggle(name)}
+        return {"name": name, "sent": self.z2m.toggle(name, transition=_num(params, "transition", 0, 3600))}
 
     def post_get(self, params):
         name = self._name(params)
-        attrs = [a for a in str(_first(params, "attr", "state")).split(",") if a]
+        attrs = [a.strip() for a in str(_first(params, "attr", "state")).split(",") if a.strip()]
+        if not attrs or any(not a.replace("_", "").isalnum() for a in attrs):
+            raise ValueError("attr: kommagetrennte Attributnamen erwartet")
         self.z2m.get(name, attrs)
         return {"name": name, "requested": attrs}
 
     def post_permit_join(self, params):
-        seconds = int(_first(params, "time", 254))
+        seconds = _num(params, "time", 0, 254, int)
+        if seconds is None:
+            seconds = 254
         device = _first(params, "device") or None
+        if device:
+            _check_name(device)
         return self.z2m.permit_join(seconds, device)
 
     def post_health_check(self, params):
@@ -173,7 +228,7 @@ class Z2MApi:
         old, new = _first(params, "from"), _first(params, "to")
         if not old or not new:
             raise ValueError("from und to erforderlich")
-        return self.z2m.rename(old, new, _first(params, "homeassistant_rename") in ("1", "true"))
+        return self.z2m.rename(_check_name(old), _check_name(new), _first(params, "homeassistant_rename") in ("1", "true"))
 
     def post_restart(self, params):
         if _first(params, "confirm") not in ("1", "true", "yes"):
@@ -186,7 +241,12 @@ class Z2MApi:
         name = _first(params, "name")
         if not name:
             raise ValueError("Parameter 'name' fehlt")
-        return name
+        return _check_name(name)
+
+    def _wait(self, params):
+        """'wait' in Sekunden, standardmässig 2, höchstens MAX_WAIT (der HTTP-Server blockiert solange)."""
+        w = _num(params, "wait", 0, 1e9)
+        return min(self.MAX_WAIT, 2.0 if w is None else w)
 
 
 # ---------------------------------------------------------------------------
@@ -205,37 +265,45 @@ pre{background:#000;padding:.6em;overflow:auto;font-size:.85em}</style>
 <h2>Roh-Daten</h2><pre id="raw"></pre>
 <script>
 const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(p,m){const r=await fetch(p,{method:m||'GET'});return r.json();}
 function row(k,v,cls){return `<tr><td>${k}</td><td class="${cls||''}">${v??'–'}</td></tr>`}
 async function refresh(){
   const {result:s}=await api('/api/z2m/info');
   const st=await api('/api/z2m/status');
-  $('#status').innerHTML=`<b class="${s.online?'ok':'bad'}">${st.result.text}</b>`;
+  $('#status').innerHTML=`<b class="${s.online?'ok':'bad'}">${esc(st.result.text)}</b>`;
   const vcls={ok:'ok',newer:'warn',older:'bad'}[s.version_status]||'';
+  const pjEnd=s.permit_join_end?new Date(s.permit_join_end>1e11?s.permit_join_end:s.permit_join_end*1000):null; // Z2M: Sekunden oder Millisekunden
   $('#info').innerHTML=[
-    row('Zigbee2MQTT-Version',`${s.version??'?'} (erwartet ${s.expected_version}, Commit ${s.commit??'?'})`,vcls),
-    row('Frontend',s.frontend_url?`<a href="${s.frontend_url}" target="_blank" style="color:#8cf">${s.frontend_url}</a>`:'–'),
-    row('zigbee-herdsman-converters',s.zigbee_herdsman_converters),row('zigbee-herdsman',s.zigbee_herdsman),
-    row('Koordinator',`${s.coordinator.type??'?'} · ${s.coordinator.ieee_address??'?'} · Revision ${s.coordinator.revision??'?'}`),
-    row('Netzwerk',`Kanal ${s.network.channel??'?'}, PAN-ID ${s.network.pan_id??'?'}`),
-    row('Maschine',`${s.os??'?'} · CPU: ${s.cpus??'?'} · RAM: ${s.memory_mb??'?'} MB · Node ${s.node_version??'?'}`),
-    row('MQTT (Z2M-Seite)',`${s.z2m_mqtt_server??'?'} (Protokoll ${s.z2m_mqtt_version??'?'})`),
-    row('MQTT (unsere Seite)',`${s.mqtt_host} · ${s.mqtt_connected?'verbunden':'getrennt'} ${s.mqtt_error?'· '+s.mqtt_error:''}`,s.mqtt_connected?'ok':'bad'),
-    row('Bridge',s.bridge_state,s.bridge_state==='online'?'ok':'bad'),
-    row('Anlernen (permit_join)',s.permit_join?`offen bis ${new Date(s.permit_join_end*1000).toLocaleTimeString()}`:'gesperrt',s.permit_join?'warn':''),
+    row('Zigbee2MQTT-Version',esc(`${s.version??'?'} (erwartet ${s.expected_version}, Commit ${s.commit??'?'})`),vcls),
+    row('Frontend',s.frontend_url?`<a href="${esc(s.frontend_url)}" target="_blank" rel="noopener" style="color:#8cf">${esc(s.frontend_url)}</a>`:'–'),
+    row('zigbee-herdsman-converters',esc(s.zigbee_herdsman_converters)),row('zigbee-herdsman',esc(s.zigbee_herdsman)),
+    row('Koordinator',esc(`${s.coordinator.type??'?'} · ${s.coordinator.ieee_address??'?'} · Revision ${s.coordinator.revision??'?'}`)),
+    row('Netzwerk',esc(`Kanal ${s.network.channel??'?'}, PAN-ID ${s.network.pan_id??'?'}`)),
+    row('Maschine',esc(`${s.os??'?'} · CPU: ${s.cpus??'?'} · RAM: ${s.memory_mb??'?'} MB · Node ${s.node_version??'?'}`)),
+    row('MQTT (Z2M-Seite)',esc(`${s.z2m_mqtt_server??'?'} (Protokoll ${s.z2m_mqtt_version??'?'})`)),
+    row('MQTT (unsere Seite)',esc(`${s.mqtt_host} · ${s.mqtt_connected?'verbunden':'getrennt'} ${s.mqtt_error?'· '+s.mqtt_error:''}`),s.mqtt_connected?'ok':'bad'),
+    row('Bridge',esc(s.bridge_state),s.bridge_state==='online'?'ok':'bad'),
+    row('Anlernen (permit_join)',s.permit_join?`offen${pjEnd?' bis '+pjEnd.toLocaleTimeString():''}${s.permit_join_remaining_sec!=null?' ('+s.permit_join_remaining_sec+' s)':''}`:'gesperrt',s.permit_join?'warn':''),
     row('Neustart nötig',s.restart_required?'ja':'nein',s.restart_required?'warn':''),
-    row('Health',s.health.uptime_sec!=null?`Laufzeit ${Math.round(s.health.uptime_sec/60)} min · Z2M ${s.health.process_memory_mb} MB · System-RAM ${s.health.os_memory_percent}% · Load ${JSON.stringify(s.health.os_load_average)}`:'noch kein Health-Check empfangen'),
-    row('Geräte',`${s.devices_total} (davon ${s.lights_total} Leuchten)${s.devices_offline.length?' · offline: '+s.devices_offline.join(', '):''}`,s.devices_offline.length?'warn':''),
-    row('Letzte Warnungen',s.last_warnings.map(w=>`[${w.level}] ${w.message}`).join('<br>')||'keine'),
+    row('Health',s.health.uptime_sec!=null?esc(`Laufzeit ${Math.round(s.health.uptime_sec/60)} min · Z2M ${s.health.process_memory_mb} MB · System-RAM ${s.health.os_memory_percent}% · Load ${JSON.stringify(s.health.os_load_average)}`):'noch kein Health-Check empfangen'),
+    row('Geräte',esc(`${s.devices_total} (davon ${s.lights_total} Leuchten)${s.devices_offline.length?' · offline: '+s.devices_offline.join(', '):''}`),s.devices_offline.length?'warn':''),
+    row('Letzte Warnungen',s.last_warnings.map(w=>esc(`[${w.level}] ${w.message}`)).join('<br>')||'keine'),
   ].join('');
   const {result:lights}=await api('/api/z2m/lights');
-  $('#lights').innerHTML=lights.map(l=>`<div>${l.friendly_name} — ${l.description??''} · <b>${l.state??'?'}</b> ${l.brightness!=null?Math.round(l.brightness/2.54)+'%':''}
+  $('#lights').innerHTML=lights.map(l=>`<div>${esc(l.friendly_name)} — ${esc(l.description)} · <b>${esc(l.state??'?')}</b> ${l.brightness!=null?Math.round(l.brightness/2.54)+'%':''}
     ${l.available==='offline'?'<span class="bad">offline</span>':''}
-    <button onclick="api('/api/z2m/toggle?name=${encodeURIComponent(l.friendly_name)}','POST').then(refresh)">an/aus</button>
-    ${l.color?['#FF1010','#00C000','#0033FF','#FF6A00','#FFFFFF'].map(h=>`<button style="background:${h}" onclick="api('/api/z2m/set?name=${encodeURIComponent(l.friendly_name)}&hex=${encodeURIComponent(h)}&transition=1','POST').then(refresh)">&nbsp;</button>`).join(''):''}
+    <button data-act="toggle" data-name="${esc(l.friendly_name)}">an/aus</button>
+    ${l.color?['#FF1010','#00C000','#0033FF','#FF6A00','#FFFFFF'].map(h=>`<button data-act="set" data-hex="${h}" data-name="${esc(l.friendly_name)}" style="background:${h}">&nbsp;</button>`).join(''):''}
   </div>`).join('')||'keine Leuchten in bridge/devices gefunden';
   $('#raw').textContent=JSON.stringify(s,null,1);
 }
+$('#lights').addEventListener('click',ev=>{
+  const b=ev.target.closest('button[data-act]'); if(!b) return;
+  const n=encodeURIComponent(b.dataset.name);
+  const url=b.dataset.act==='toggle'?`/api/z2m/toggle?name=${n}`:`/api/z2m/set?name=${n}&hex=${encodeURIComponent(b.dataset.hex)}&transition=1`;
+  api(url,'POST').then(refresh);
+});
 refresh();setInterval(refresh,5000);
 </script>"""
 

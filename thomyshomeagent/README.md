@@ -167,7 +167,7 @@ Diese Schritte setzen voraus, dass `z2m.py`, `z2m_api.py` und die neue `homebrai
 | `POST /api/z2m/rename?from=&to=`                                                        | Gerät umbenennen                                                                                         |
 | `POST /api/z2m/restart?confirm=1`                                                       | Zigbee2MQTT neu starten (nur mit `confirm=1`)                                                            |
 
-`name` ist der `friendly_name` oder die IEEE-Adresse. Antworten: `{"ok":true,"result":…}` bzw. `{"ok":false,"error":"…"}` (HTTP 400 Parameter, 404 unbekannt, 502 Zigbee2MQTT/MQTT-Fehler).
+`name` ist der `friendly_name` oder die IEEE-Adresse (keine MQTT-Wildcards `+`/`#`). `wait` ist auf 10 s begrenzt, weil der HTTP-Server von lichtapp.py solange blockiert. Antworten: `{"ok":true,"result":…}` bzw. `{"ok":false,"error":"…"}` (HTTP 400 Parameter, 404 unbekannt, 502 Zigbee2MQTT/MQTT-Fehler).
 
 Beispiele:
 
@@ -185,7 +185,7 @@ curl -s 'http://192.168.1.54:8099/api/z2m/lights'
 - **Szenen** in `scenes.json` können neben `bar` einen Block `"zigbee": {"<friendly_name>": {…/set-Payload…}}` enthalten, der beim Auslösen an die jeweiligen Leuchten geht.
 - Der System-Prompt für Ollama listet die Zigbee-Leuchten dynamisch (`%ZIGBEE%`), damit das Modell sie als `target` benutzen kann.
 - Ollama bleibt auf dem Laptop (`OLLAMA_URL = http://192.168.1.54:11434`, unverändert); ein späterer Umzug auf einen Pi 5 wäre möglich, ist hier aber nicht eingeplant.
-- Ohne `z2m=` verhält sich `HomeBrain` exakt wie vorher (Bar über `agent.bar()` / `agent.z2m_set()`).
+- Ohne `z2m=` verhält sich `HomeBrain` wie vorher (Bar über `agent.bar()` / `agent.z2m_set()`); einzig die neuen Synonyme aus `Z2M_GERAETE` (`lichtleiste`, `wandpanel`, …) gelten auch dann, weil sie aus `config.json` kommen.
 
 ## Sicherheit / Hinweise
 
