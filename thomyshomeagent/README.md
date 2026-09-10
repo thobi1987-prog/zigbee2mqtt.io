@@ -38,7 +38,7 @@ Das Konzept in `docs/ThomysHomeAgent_RaspberryPi_Konzept.pdf` sieht vor, dass Th
 | `thomyshome_proxy.py` | Vorschalt-Server (Port 8098): liefert `/zigbee`, `/api/z2m/*` und die Handy-App selbst und reicht alles andere an `lichtapp.py` weiter – **kein Eingriff in `lichtapp.py` nötig**; `thomyshome-proxy.service` startet ihn als Dienst, `test_proxy.py` testet ihn |
 | `pwa.py`              | Macht das Dashboard auf dem Handy als App installierbar (Manifest, Service Worker, Icons); `test_pwa.py` testet es                                                                                                                                               |
 | `desktop_icon.py`     | Legt das Projekt mit Icon auf den Schreibtisch des Laptops und kopiert dabei alle Dateien nach `~/lichtagent/`; `test_desktop_icon.py` testet es                                                                                                                 |
-| `docs/`               | Konzept „ThomysHomeAgent auf dem Raspberry Pi“ (PDF) und weitere Unterlagen zum Projekt                                                                                                                                                                          |
+| `docs/`               | Konzept „ThomysHomeAgent auf dem Raspberry Pi“ (PDF), Screenshot der Zigbee-Seite, `HOMEBRAIN_PORTIEREN.md` + `homebrain_zigbee.diff` zum Einbau der Zigbee-Erweiterung in eine weiterentwickelte `homebrain.py`                                                 |
 | `config.example.json` | Alle Schlüssel der `config.json` inkl. der neuen (ohne Zugangsdaten)                                                                                                                                                                                             |
 
 ## Ohne Änderung an `lichtapp.py`: der ThomysHome-Proxy (empfohlen)
@@ -76,7 +76,7 @@ Wer die Routen lieber direkt in `lichtapp.py` einbaut (Checkliste weiter unten),
     cp /pfad/zu/thomyshomeagent/{z2m.py,z2m_api.py,homebrain.py,test_z2m.py} .
     ```
 
-    Die neue `homebrain.py` enthält den Stand vom 09.09. (inkl. `OLLAMA_URL`-Fix) plus die Zigbee-Erweiterung. Falls du `RAEUME` oder `FARBEN` seither geändert hast: Diff mit `diff homebrain.py.bak homebrain.py` prüfen und übernehmen.
+    Die neue `homebrain.py` enthält den Stand vom 09.09. (inkl. `OLLAMA_URL`-Fix) plus die Zigbee-Erweiterung. **Wurde die laufende `homebrain.py` seither weiterentwickelt, nicht überschreiben**, sondern die Zigbee-Stücke nach `docs/HOMEBRAIN_PORTIEREN.md` einbauen (`docs/homebrain_zigbee.diff` zeigt jede Änderung gegenüber dem Original).
 
 2. **`config.json` ergänzen** (die bestehenden Schlüssel `mqtt_host`, `mqtt_user`, `mqtt_pass`, `z2m_base`, `bar`, `panel` werden weiterverwendet):
 
