@@ -883,6 +883,8 @@ class TestHomeBrain(Z2MTestCase):
         self.assertEqual(hb._rules("alles dunkler ausser küche"), [{"action": "brightness", "target": "all", "pct": 25, "except": ["küche"]}])
         self.assertEqual(hb.handle("alles dunkler ausser küche"), "✓ all 25% (ausser küche)")
         self.assertEqual(agent.ha.calls, [("light", ["light.stube"], {"brightness_pct": 25, "transition": 2})])
+        dim = {"state": "ON", "brightness": 63, "transition": 2}
+        self.assertTrue(wait_for(lambda: self.sets("ThomysHomeBar")[-1:] == [dim] and self.sets("0x001788010efccbdb")[-1:] == [dim]))
         agent.ha.calls.clear()
         n_bar, n_panel = len(self.sets("ThomysHomeBar")), len(self.sets("0x001788010efccbdb"))
         self.assertEqual(hb.handle("alles aus ausser küche"), "✓ all aus (ausser küche)")
