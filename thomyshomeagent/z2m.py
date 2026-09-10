@@ -419,8 +419,11 @@ def _parse_version(v):
         return None
 
 
-def _light_features(exposes):
-    """Liest aus einer expose-Liste die Fähigkeiten aller 'light'-Einträge."""
+def _light_features(exposes, details=None):
+    """Liest aus einer expose-Liste die Fähigkeiten aller 'light'-Einträge.
+
+    details (dict, optional) bekommt je Feature value_min/value_max, sofern vorhanden.
+    """
     feats = []
     for e in exposes or []:
         if not isinstance(e, dict):
@@ -430,7 +433,29 @@ def _light_features(exposes):
                 n = f.get("name") if isinstance(f, dict) else None
                 if n and n not in feats:
                     feats.append(n)
+                if n and details is not None and ("value_min" in f or "value_max" in f):
+                    details[n] = [f.get("value_min"), f.get("value_max")]
     return feats
+
+
+_IGNORED_STATE_KEYS = {"last_seen", "update", "elapsed"}
+
+
+def _state_changes(old, new):
+    """Geänderte Werte zwischen zwei Zuständen; verschachtelte Dicts (color) eine Ebene flach ('color.x')."""
+    def flat(d):
+        out = {}
+        for k, v in (d or {}).items():
+            if k in _IGNORED_STATE_KEYS:
+                continue
+            if isinstance(v, dict):
+                for k2, v2 in v.items():
+                    out["%s.%s" % (k, k2)] = v2
+            else:
+                out[k] = v
+        return out
+    o, n = flat(old), flat(new)
+    return {k: [o.get(k), v] for k, v in n.items() if o.get(k) != v}
 
 
 class Zigbee2MQTT:
@@ -456,6 +481,7 @@ class Zigbee2MQTT:
         self.availability = {}        # friendly_name -> "online"/"offline"
         self.events = deque(maxlen=50)
         self.logs = deque(maxlen=50)  # nur warning/error
+        self.activity = deque(maxlen=200)  # Zustandsänderungen je Gerät (wie „Aktuelle Aktivität“ im Frontend)
         self.last_message_at = None
         self.last_error = None
 
@@ -534,8 +560,13 @@ class Zigbee2MQTT:
             return
         if isinstance(data, dict):
             with self._lock:
+                old = self.states.get(rest)
                 self.states[rest] = data
                 self.state_updated_at[rest] = time.time()
+            if old is not None:
+                changes = _state_changes(old, data)
+                if changes:
+                    self.activity.append({"time": time.time(), "name": rest, "changes": changes})
 
     def _on_bridge(self, sub, data):
         if sub == "state":
@@ -763,7 +794,8 @@ class Zigbee2MQTT:
             if d.get("type") == "Coordinator" or d.get("disabled") or not d.get("supported", True):
                 continue
             definition = d.get("definition") or {}
-            feats = _light_features(definition.get("exposes"))
+            details = {}
+            feats = _light_features(definition.get("exposes"), details)
             if not feats:
                 continue
             name = d.get("friendly_name") or d.get("ieee_address")
@@ -776,11 +808,23 @@ class Zigbee2MQTT:
                 "description": definition.get("description") or d.get("description"),
                 "features": feats,
                 "color": any(f in feats for f in ("color_xy", "color_hs")),
+                "color_temp_range": details.get("color_temp") or ([150, 500] if "color_temp" in feats else None),
+                "brightness_max": (details.get("brightness") or [None, 254])[1] or 254,
                 "state": st.get("state"),
                 "brightness": st.get("brightness"),
+                "color_temp": st.get("color_temp"),
+                "linkquality": st.get("linkquality"),
                 "available": avail.get(name),
             })
         return out
+
+    def light(self, name):
+        """Leuchten-Eintrag (wie in lights()) für friendly_name oder IEEE, sonst None."""
+        key = self.friendly_name(name)
+        for l in self.lights():
+            if l["friendly_name"] == key or l["ieee_address"] == name:
+                return l
+        return None
 
     def light_names(self):
         return [l["friendly_name"] for l in self.lights()]

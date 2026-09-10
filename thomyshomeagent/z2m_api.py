@@ -26,6 +26,8 @@ Alle Endpunkte (GET = lesen, POST = ausführen; Parameter als Query-String):
     GET  /api/z2m/groups                 Gruppen
     GET  /api/z2m/state?name=            Zustand eines Geräts (refresh=1 → vorher /get senden)
     GET  /api/z2m/events                 letzte Ereignisse + Warnungen
+    GET  /api/z2m/activity[?limit=50]   Zustandsänderungen je Gerät, neueste zuerst („Aktuelle Aktivität“)
+    GET  /zigbee                         Zigbee-Oberfläche (HTML) → Z2MApi.page(path), siehe z2m_page.py
     POST /api/z2m/set?name=&hex=&brightness=&state=&color_temp=&transition=
     POST /api/z2m/toggle?name=
     POST /api/z2m/get?name=&attr=state
@@ -47,6 +49,10 @@ try:
     import pwa                      # Startbildschirm-App (optional)
 except ImportError:                 # pragma: no cover
     pwa = None
+try:
+    import z2m_page                 # Zigbee-Oberfläche /zigbee (optional)
+except ImportError:                 # pragma: no cover
+    z2m_page = None
 
 PREFIX = "/api/z2m/"
 
@@ -105,6 +111,7 @@ class Z2MApi:
     GET_ROUTES = {
         "info": "get_info", "status": "get_status", "health": "get_health", "devices": "get_devices",
         "lights": "get_lights", "groups": "get_groups", "state": "get_state", "events": "get_events",
+        "activity": "get_activity",
     }
     POST_ROUTES = {
         "set": "post_set", "toggle": "post_toggle", "get": "post_get", "permit_join": "post_permit_join",
@@ -173,6 +180,22 @@ class Z2MApi:
 
     def get_events(self, params):
         return {"events": list(self.z2m.events), "warnings": list(self.z2m.logs)}
+
+    def get_activity(self, params):
+        limit = _num(params, "limit", 1, 200, int) or 50
+        return list(reversed(list(self.z2m.activity)))[:limit]
+
+    # ---------- Zigbee-Oberfläche (HTML) ----------
+    def page(self, path, head_extra=None):
+        """(status, content_type, body) für die Zigbee-Seite unter /zigbee, sonst None.
+
+        head_extra: zusätzliche <head>-Zeilen, z. B. pwa.head_tags() für die Handy-App.
+        """
+        if z2m_page is None or path.rstrip("/") != z2m_page.PAGE_PATH:
+            return None
+        if head_extra is None and pwa is not None:
+            head_extra = pwa.head_tags()
+        return 200, "text/html; charset=utf-8", z2m_page.html(head_extra or "").encode("utf-8")
 
     # ---------- Steuern ----------
     def post_set(self, params):
@@ -334,7 +357,11 @@ def serve(cfg, port=8098, certfile=None, keyfile=None):
         def _route(self):
             u = urllib.parse.urlsplit(self.path)
             params = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
-            if u.path in ("/", "/index.html"):
+            if u.path in ("/", "/index.html") or u.path.rstrip("/") == "/zigbee":
+                hit = api.page("/zigbee")
+                if hit is not None:
+                    return self._raw(*hit)
+            if u.path == "/preview":
                 return self._raw(200, "text/html; charset=utf-8", page)
             if pwa and self.command == "GET":
                 hit = pwa.handle(u.path)

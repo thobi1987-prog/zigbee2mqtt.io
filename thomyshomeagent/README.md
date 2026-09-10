@@ -28,16 +28,17 @@ Das Konzept in `docs/ThomysHomeAgent_RaspberryPi_Konzept.pdf` sieht vor, dass Th
 
 ## Dateien
 
-| Datei                 | Zweck                                                                                                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `z2m.py`              | MQTT-Client (Subscribe, Keepalive, Reconnect) + `Zigbee2MQTT`-Klasse mit Cache, Anfragen mit `transaction`, Licht-Steuerung                      |
-| `z2m_api.py`          | HTTP-Endpunkte `/api/z2m/*` für `lichtapp.py`; läuft auch alleine als Testserver mit Vorschau-Seite                                              |
-| `homebrain.py`        | Ersetzt die bisherige Datei: Zigbee-Leuchten aus Zigbee2MQTT sind Sprachbefehl-Ziele, HA und Zigbee laufen unabhängig                            |
-| `test_z2m.py`         | Tests mit simuliertem Broker und simuliertem Zigbee2MQTT 2.13.0 (`python3 test_z2m.py`)                                                          |
-| `pwa.py`              | Macht das Dashboard auf dem Handy als App installierbar (Manifest, Service Worker, Icons); `test_pwa.py` testet es                               |
-| `desktop_icon.py`     | Legt das Projekt mit Icon auf den Schreibtisch des Laptops und kopiert dabei alle Dateien nach `~/lichtagent/`; `test_desktop_icon.py` testet es |
-| `docs/`               | Konzept „ThomysHomeAgent auf dem Raspberry Pi“ (PDF) und weitere Unterlagen zum Projekt                                                          |
-| `config.example.json` | Alle Schlüssel der `config.json` inkl. der neuen (ohne Zugangsdaten)                                                                             |
+| Datei                 | Zweck                                                                                                                                                     |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `z2m.py`              | MQTT-Client (Subscribe, Keepalive, Reconnect) + `Zigbee2MQTT`-Klasse mit Cache, Anfragen mit `transaction`, Licht-Steuerung                               |
+| `z2m_api.py`          | HTTP-Endpunkte `/api/z2m/*` für `lichtapp.py`; läuft auch alleine als Testserver mit Vorschau-Seite                                                       |
+| `homebrain.py`        | Ersetzt die bisherige Datei: Zigbee-Leuchten aus Zigbee2MQTT sind Sprachbefehl-Ziele, HA und Zigbee laufen unabhängig                                     |
+| `test_z2m.py`         | Tests mit simuliertem Broker und simuliertem Zigbee2MQTT 2.13.0 (`python3 test_z2m.py`)                                                                   |
+| `z2m_page.py`         | Zigbee-Oberfläche `/zigbee` in ThomysHomeAgent (Geräte, Aktivität, Gruppen, Bridge) – nachgebaut nach dem Zigbee2MQTT-Frontend, gespeist aus `/api/z2m/*` |
+| `pwa.py`              | Macht das Dashboard auf dem Handy als App installierbar (Manifest, Service Worker, Icons); `test_pwa.py` testet es                                        |
+| `desktop_icon.py`     | Legt das Projekt mit Icon auf den Schreibtisch des Laptops und kopiert dabei alle Dateien nach `~/lichtagent/`; `test_desktop_icon.py` testet es          |
+| `docs/`               | Konzept „ThomysHomeAgent auf dem Raspberry Pi“ (PDF) und weitere Unterlagen zum Projekt                                                                   |
+| `config.example.json` | Alle Schlüssel der `config.json` inkl. der neuen (ohne Zugangsdaten)                                                                                      |
 
 ## Installation auf dem Laptop (192.168.1.54)
 
@@ -154,6 +155,35 @@ Diese Schritte setzen voraus, dass `z2m.py`, `z2m_api.py` und die neue `homebrai
     Erwartet: Status `online: true`, die Bar in der Leuchtenliste, und `✓ Bar blau` — die Bar wird tatsächlich blau. Danach `bar auf warmweiss` oder eine Szene, um den Zustand wiederherzustellen.
 8. **Nicht tun:** `mqtt_user`/`mqtt_pass` oder den HA-Token in Dateien ausserhalb von `config.json` schreiben; `/api/z2m/permit_join` oder `/api/z2m/restart` in Automatisierungen ohne Rückfrage aufrufen; Timeout- oder Reconnect-Logik in `lichtagent.py` nachbauen — `z2m.py` bringt sie mit.
 
+## Zigbee-Oberfläche in ThomysHomeAgent (`/zigbee`)
+
+Die wichtigsten Ansichten des Zigbee2MQTT-Frontends (WindFront auf dem SMHUB) gibt es jetzt direkt in ThomysHomeAgent — als Seite `/zigbee` auf demselben Server, also auch in der Handy-App. Sie holt alles über `/api/z2m/*`; das Handy spricht nie direkt mit Zigbee2MQTT oder dem MQTT-Broker (wie im Raspberry-Pi-Konzept vorgesehen).
+
+| Reiter        | Inhalt                                                                                                                                                                                                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Geräte**    | Karten wie im Frontend: Name, Hersteller/Modell, Linkqualität (Balken + Wert), online/offline, Batterie, Router/Endgerät; Leuchten mit an/aus, Helligkeit, Farbtemperatur (nur wenn das Gerät sie kann) und Farbfeldern (nur bei Farblicht); Sensoren mit ihren Werten |
+| **Aktivität** | „Aktuelle Aktivität“: Zustandsänderungen je Gerät, z. B. `ThomysHomeBar — linkquality: 184 → 190`, `brightness: 165 → 220` (neu: `GET /api/z2m/activity`)                                                                                                              |
+| **Gruppen**   | Zigbee-Gruppen mit Mitgliederzahl, Szenen, an/aus                                                                                                                                                                                                                      |
+| **Bridge**    | Version, Commit, Koordinator, Netzwerk, Maschine, MQTT, Health, Warnungen                                                                                                                                                                                              |
+
+![Zigbee-Seite in ThomysHomeAgent](docs/zigbee-seite.png)
+
+Oben: **„Beitritt erlauben“** (öffnet das Netz 2 Minuten, mit Rückfrage; zeigt die Restzeit), der Knopf **⟳** (Aktualisieren) und der Link **„WindFront“** für alles, was nur das Original kann (OTA, Bindungen, Berichte, Netzwerkkarte). Die Seite aktualisiert sich alle 5 s, aber nie, während ein Schieberegler unter dem Finger ist.
+
+**Einbau in `lichtapp.py`** (eine Stelle, zusätzlich zur Checkliste):
+
+```python
+hit = z2m_api.page(path)                     # /zigbee → (status, content_type, html_bytes), sonst None
+if hit is not None:
+    status, content_type, body = hit
+    # wie bei pwa.handle(): Antwort mit diesem Content-Type senden
+    return
+```
+
+Im Dashboard reicht dann ein Link oder Button auf `/zigbee` (z. B. im Info-Panel). Ohne `lichtapp.py` zeigt der Testserver die Seite sofort: `python3 z2m_api.py config.json 8098` → `http://192.168.1.54:8098/` (die alte Kurz-Vorschau liegt unter `/preview`).
+
+**Sprachbefehle und Panels:** Die Hue-Panels (Küchen Panel, Spense Panel) sind „White Ambiance“, also nur Helligkeit und Farbtemperatur. HomeBrain prüft die Fähigkeiten in Zigbee2MQTT: Bei einem Farbbefehl werden solche Leuchten nur eingeschaltet, die Antwort sagt es dazu (`… (Küchen Panel: kein Farblicht, nur an)`). Helligkeit funktioniert normal (`küchen panel dunkler`, `spense panel 30 %`), die Gerätenamen aus Zigbee2MQTT sind automatisch Ziele.
+
 ## Projekt auf dem Schreibtisch (Laptop)
 
 `python3 desktop_icon.py` legt auf dem Schreibtisch des Laptops zwei Dinge an:
@@ -215,6 +245,7 @@ Zum Ausprobieren ohne `lichtapp.py`: `python3 z2m_api.py config.json 8098` — d
 | `GET /api/z2m/devices` · `/lights` · `/groups`                                          | Geräte (kompakt), Leuchten mit Zustand, Gruppen                                                          |
 | `GET /api/z2m/state?name=<Gerät>[&refresh=1&wait=2]`                                    | Zustand aus dem Cache (`refresh=1`: `/get` senden und bis `wait` s auf die Antwort dieses Geräts warten) |
 | `GET /api/z2m/events`                                                                   | letzte Ereignisse (`device_joined`, …) und Warnungen aus `bridge/logging`                                |
+| `GET /api/z2m/activity?limit=50`                                                        | Zustandsänderungen je Gerät, neueste zuerst („Aktuelle Aktivität“)                                       |
 | `POST /api/z2m/set?name=&hex=%23rrggbb&brightness=0-100&state=&color_temp=&transition=` | Leuchte steuern (Helligkeit in %, wird auf 0–254 umgerechnet)                                            |
 | `POST /api/z2m/toggle?name=`                                                            | an/aus umschalten                                                                                        |
 | `POST /api/z2m/get?name=&attr=state,brightness`                                         | Zustand beim Gerät anfordern                                                                             |

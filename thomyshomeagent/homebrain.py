@@ -250,6 +250,16 @@ class HomeBrain:
             return [self.z2m.device(target).get("friendly_name") or target]
         return []
 
+    def _z2m_has_color(self, name):
+        """True/False je nach Zigbee2MQTT-Fähigkeiten der Leuchte, None wenn unbekannt (kein z2m)."""
+        if self.z2m is None:
+            return None
+        try:
+            l = self.z2m.light(name)
+        except Exception:
+            return None
+        return bool(l["color"]) if l else None
+
     def _z2m_send(self, name, payload):
         """Schickt ein /set an Zigbee2MQTT — über z2m.py wenn vorhanden, sonst wie bisher."""
         if self.z2m is not None:
@@ -331,10 +341,14 @@ class HomeBrain:
                     except Exception as e:
                         ha_err = e
                     # --- Zigbee2MQTT ---
+                    no_color = []
                     for zn in znames:
                         if typ == "color":
                             if zn == cfg.get("bar"):
                                 self.a.bar(hexc)                       # bewährter Weg für die Bar
+                            elif self._z2m_has_color(zn) is False:     # z. B. Hue-Panel „White Ambiance“: nur an + hell
+                                self._z2m_send(zn, {"state": "ON", "brightness": 180, "transition": 2})
+                                no_color.append(zn)
                             else:
                                 self._z2m_send(zn, {"state": "ON", "color": {"hex": hexc.upper()}, "brightness": 180, "transition": 2})
                         elif typ == "brightness":
@@ -345,7 +359,8 @@ class HomeBrain:
                         done.append(f"'{tgt}' unbekannt")
                     elif typ == "color":
                         label = "Bar" if tgt == "bar" else tgt
-                        done.append(f"{label} {act.get('color')}" + (f" (ausser {','.join(exc)})" if exc else ""))
+                        done.append(f"{label} {act.get('color')}" + (f" (ausser {','.join(exc)})" if exc else "")
+                                    + (f" ({', '.join(no_color)}: kein Farblicht, nur an)" if no_color else ""))
                     elif typ == "brightness":
                         done.append(f"{tgt} {pct}%" + (f" (ausser {','.join(exc)})" if exc else ""))
                     else:

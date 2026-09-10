@@ -233,6 +233,12 @@ LIGHT_EXPOSE = {"type": "light", "features": [
         {"type": "numeric", "name": "x", "property": "x", "access": 7}, {"type": "numeric", "name": "y", "property": "y", "access": 7}]},
 ]}
 
+WHITE_AMBIANCE_EXPOSE = {"type": "light", "features": [
+    {"type": "binary", "name": "state", "property": "state", "value_on": "ON", "value_off": "OFF", "value_toggle": "TOGGLE", "access": 7},
+    {"type": "numeric", "name": "brightness", "property": "brightness", "value_min": 0, "value_max": 254, "access": 7},
+    {"type": "numeric", "name": "color_temp", "property": "color_temp", "value_min": 153, "value_max": 454, "access": 7},
+]}
+
 BRIDGE_INFO = {
     "version": "2.13.0", "commit": "fcbb7ff4",
     "coordinator": {"ieee_address": "0x00124b0033cb0f78", "type": "zStack3x0",
@@ -254,8 +260,12 @@ DEVICES = [
      "description": "Zigbee RGB+CCT light", "options": [], "exposes": [LIGHT_EXPOSE]}, "power_source": "Mains (single phase)",
      "interview_state": "SUCCESSFUL"},
     {"ieee_address": "0x001788010efccbdb", "type": "Router", "network_address": 2345, "supported": True, "disabled": False,
-     "friendly_name": "0x001788010efccbdb", "definition": {"source": "native", "model": "915005987201", "vendor": "Philips",
-     "description": "Hue Signe floor light", "options": [], "exposes": [LIGHT_EXPOSE]}, "power_source": "Mains (single phase)",
+     "friendly_name": "0x001788010efccbdb", "definition": {"source": "native", "model": "929003099001", "vendor": "Philips",
+     "description": "Hue Aurelle Panel Weiss Ambiente", "options": [], "exposes": [WHITE_AMBIANCE_EXPOSE]}, "power_source": "Mains (single phase)",
+     "interview_state": "SUCCESSFUL"},
+    {"ieee_address": "0x001788010effffff", "type": "Router", "network_address": 2346, "supported": True, "disabled": False,
+     "friendly_name": "Küchen Panel", "definition": {"source": "native", "model": "929003099001", "vendor": "Philips",
+     "description": "Hue Aurelle Panel Weiss Ambiente", "options": [], "exposes": [WHITE_AMBIANCE_EXPOSE]}, "power_source": "Mains (single phase)",
      "interview_state": "SUCCESSFUL"},
     {"ieee_address": "0x00158d0001112233", "type": "EndDevice", "network_address": 3456, "supported": True, "disabled": False,
      "friendly_name": "Sensor Flur", "definition": {"source": "native", "model": "RTCGQ11LM", "vendor": "Aqara",
@@ -275,7 +285,8 @@ class FakeZ2M:
         self.base = base
         self.info = json.loads(json.dumps(BRIDGE_INFO))
         self.states = {"ThomysHomeBar": {"state": "ON", "brightness": 200, "color": {"x": 0.3, "y": 0.3}, "linkquality": 120},
-                       "0x001788010efccbdb": {"state": "OFF", "brightness": 254, "linkquality": 90}}
+                       "0x001788010efccbdb": {"state": "OFF", "brightness": 254, "color_temp": 366, "linkquality": 90},
+                       "Küchen Panel": {"state": "ON", "brightness": 180, "color_temp": 250, "linkquality": 147}}
         self.requests = []
         self.drop_get = False        # True: /get-Anfragen ignorieren (verlorene QoS-0-Nachricht simulieren)
         self.mqtt = MiniMqtt("127.0.0.1", broker.port, user, password, client_id="fake-z2m",
@@ -467,6 +478,7 @@ class TestMqtt(Z2MTestCase):
             self.addCleanup(z.stop)
             self.assertTrue(wait_for(lambda: z.info and z.devices and z.bridge_state == "online"))
             gets = lambda: len([g for g in self.broker.received if g[0] == "zigbee2mqtt/ThomysHomeBar/get"])
+            self.assertTrue(wait_for(lambda: gets() >= 1))          # erstes /get nach bridge/devices ist unterwegs
             n0 = gets()
             self.assertIsNone(z.state("ThomysHomeBar"))
             self.fake.mqtt.publish("zigbee2mqtt/bridge/devices", DEVICES, retain=True)   # zu früh → kein Retry
@@ -530,13 +542,13 @@ class TestZigbee2MQTT(Z2MTestCase):
         self.assertEqual(s["node_version"], "v22.22.0")
         self.assertEqual(s["memory_mb"], 489)
         self.assertEqual(s["frontend_url"], "http://127.0.0.1:8080")
-        self.assertEqual(s["devices_total"], 3)
-        self.assertEqual(s["lights_total"], 2)
+        self.assertEqual(s["devices_total"], 4)
+        self.assertEqual(s["lights_total"], 3)
         self.assertTrue(s["online"])
         self.assertTrue(wait_for(lambda: z.health))
         self.assertEqual(z.summary()["health"]["uptime_sec"], 3600)
         self.assertIn("Zigbee2MQTT 2.13.0 ✓", z.status_text())
-        self.assertIn("3 Geräte (2 Leuchten)", z.status_text())
+        self.assertIn("4 Geräte (3 Leuchten)", z.status_text())
 
     def test_version_status(self):
         z = self.make_client(z2m_expected_version="2.12.0")
@@ -553,10 +565,18 @@ class TestZigbee2MQTT(Z2MTestCase):
     def test_lights(self):
         z = self.make_client()
         lights = {l["friendly_name"]: l for l in z.lights()}
-        self.assertEqual(set(lights), {"ThomysHomeBar", "0x001788010efccbdb"})
+        self.assertEqual(set(lights), {"ThomysHomeBar", "0x001788010efccbdb", "Küchen Panel"})
         bar = lights["ThomysHomeBar"]
         self.assertEqual(bar["features"], ["state", "brightness", "color_xy"])
         self.assertTrue(bar["color"])
+        self.assertIsNone(bar["color_temp_range"])
+        panel = lights["Küchen Panel"]
+        self.assertFalse(panel["color"])
+        self.assertEqual(panel["color_temp_range"], [153, 454])
+        self.assertEqual(panel["brightness_max"], 254)
+        self.assertEqual(panel["linkquality"], 147)
+        self.assertEqual(z.light("0x001788010effffff")["friendly_name"], "Küchen Panel")
+        self.assertIsNone(z.light("Sensor Flur"))
         self.assertEqual(bar["state"], "ON")
         self.assertEqual(bar["vendor"], "Tuya")
         self.assertTrue(wait_for(lambda: z.availability.get("ThomysHomeBar") == "online"))
@@ -594,6 +614,32 @@ class TestZigbee2MQTT(Z2MTestCase):
         self.assertEqual(z.available("0xa4c138aaaaaaaaaa"), "online")
         self.assertEqual(z.friendly_name("0xa4c138aaaaaaaaaa"), "ThomysHomeBar")
         self.assertEqual(z.friendly_name("unbekannt"), "unbekannt")
+
+    def test_activity_log(self):
+        z = self.make_client()
+        z.light_set("ThomysHomeBar", brightness=77, hex_color="#00C000")
+        self.assertTrue(wait_for(lambda: any(e["name"] == "ThomysHomeBar" and "brightness" in e["changes"] for e in z.activity)))
+        e = [e for e in z.activity if e["name"] == "ThomysHomeBar"][-1]
+        self.assertEqual(e["changes"]["brightness"][1], 77)
+        self.assertIn("color.x", e["changes"])                    # verschachtelt → flach
+        api = Z2MApi(z)
+        status, body = api.handle("GET", "/api/z2m/activity", {"limit": "1"})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["result"][0]["name"], "ThomysHomeBar")   # neueste zuerst
+        z.light_set("ThomysHomeBar", brightness=200)
+
+    def test_zigbee_page(self):
+        z = self.make_client()
+        api = Z2MApi(z)
+        self.assertIsNone(api.page("/api/z2m/info"))
+        status, ctype, body = api.page("/zigbee")
+        self.assertEqual(status, 200)
+        self.assertTrue(ctype.startswith("text/html"))
+        html = body.decode("utf-8")
+        for marker in ("Aktivität", "Beitritt erlauben", "/api/z2m/activity", 'rel="manifest"', 'data-act="toggle"'):
+            self.assertIn(marker, html)
+        self.assertNotIn("%%HEAD%%", html)
+        self.assertEqual(api.page("/zigbee/")[0], 200)
 
     def test_get(self):
         z = self.make_client()
@@ -685,9 +731,9 @@ class TestApi(Z2MTestCase):
         status, body = api.handle("GET", "/api/z2m/status", {})
         self.assertTrue(body["ok"] and body["result"]["online"])
         status, body = api.handle("GET", "/api/z2m/lights", {})
-        self.assertEqual(len(body["result"]), 2)
+        self.assertEqual(len(body["result"]), 3)
         status, body = api.handle("GET", "/api/z2m/devices", {})
-        self.assertEqual(len(body["result"]), 4)
+        self.assertEqual(len(body["result"]), 5)
         status, body = api.handle("GET", "/api/z2m/groups", {})
         self.assertEqual(body["result"][0]["friendly_name"], "Alle Leuchten")
         status, body = api.handle("GET", "/api/z2m/state", {"name": "ThomysHomeBar", "refresh": "1"})
@@ -762,6 +808,9 @@ class TestApi(Z2MTestCase):
         r = info()
         self.assertEqual(r["coordinator"]["type"], "zStack3x0")
         page = urllib.request.urlopen("http://127.0.0.1:18098/", timeout=3).read().decode()
+        self.assertIn("Zigbee · ThomysHomeAgent", page)               # Zigbee-Oberfläche
+        self.assertIn("Zigbee · ThomysHomeAgent", urllib.request.urlopen("http://127.0.0.1:18098/zigbee", timeout=3).read().decode())
+        page = urllib.request.urlopen("http://127.0.0.1:18098/preview", timeout=3).read().decode()
         self.assertIn("Zigbee2MQTT in ThomysHomeAgent", page)
         self.assertNotIn("%%", page)
         self.assertNotIn("onclick", page)                       # keine Inline-Handler mit Gerätenamen
@@ -880,11 +929,15 @@ class TestHomeBrain(Z2MTestCase):
     def test_zigbee_panel_by_synonym(self):
         hb, agent, z = self.brain()
         n_before = len(self.sets("0x001788010efccbdb"))
-        self.assertEqual(hb.handle("wandpanel grün"), "✓ wandpanel grün")
+        self.assertEqual(hb.handle("wandpanel grün"), "✓ wandpanel grün (0x001788010efccbdb: kein Farblicht, nur an)")
         self.assertTrue(wait_for(lambda: len(self.sets("0x001788010efccbdb")) == n_before + 1))
-        self.assertEqual(self.sets("0x001788010efccbdb")[-1], {"state": "ON", "color": {"hex": "#00C000"}, "brightness": 180, "transition": 2})
+        self.assertEqual(self.sets("0x001788010efccbdb")[-1], {"state": "ON", "brightness": 180, "transition": 2})   # White Ambiance: keine Farbe
         self.assertEqual(agent.ha.calls, [])
-        self.assertTrue(wait_for(lambda: z.state("0x001788010efccbdb").get("color_mode") == "xy"))
+        self.assertTrue(wait_for(lambda: z.state("0x001788010efccbdb").get("state") == "ON"))
+        done = hb.execute([{"action": "brightness", "target": "küchen panel", "pct": 40}])
+        self.assertEqual(done, ["küchen panel 40%"])
+        self.assertTrue(wait_for(lambda: self.sets("Küchen Panel")[-1:] == [{"state": "ON", "brightness": 101, "transition": 2}]))
+        self.assertEqual(hb._rules("küchen panel dunkler")[0]["target"], "küchen panel")   # ganzer Name schlägt „küche“
 
     def test_zigbee_light_by_friendly_name(self):
         hb, agent, z = self.brain()
@@ -902,10 +955,11 @@ class TestHomeBrain(Z2MTestCase):
     def test_all_color_except_kitchen(self):
         hb, agent, z = self.brain()
         n_panel = len(self.sets("0x001788010efccbdb"))
-        self.assertEqual(hb.handle("alles rot ausser küche"), "✓ all rot (ausser küche)")
+        self.assertEqual(hb.handle("alles rot ausser küche"), "✓ all rot (ausser küche) (0x001788010efccbdb, Küchen Panel: kein Farblicht, nur an)")
         self.assertEqual(agent.ha.calls, [("light", ["light.stube"], {"rgb_color": [255, 16, 16], "brightness": 180, "transition": 2})])
         self.assertEqual(agent.bar_calls, ["#FF1010"])
         self.assertTrue(wait_for(lambda: len(self.sets("0x001788010efccbdb")) == n_panel + 1))
+        self.assertEqual(self.sets("0x001788010efccbdb")[-1], {"state": "ON", "brightness": 180, "transition": 2})
 
     def test_all_off(self):
         hb, agent, z = self.brain()
