@@ -35,12 +35,18 @@ Alle Endpunkte (GET = lesen, POST = ausführen; Parameter als Query-String):
     POST /api/z2m/rename?from=&to=
     POST /api/z2m/restart?confirm=1      (nur mit confirm=1)
 
-Standalone zum Testen (ohne lichtapp.py):  python3 z2m_api.py [config.json] [port]
+Standalone zum Testen (ohne lichtapp.py):  python3 z2m_api.py [config.json] [port] [server.crt server.key]
+Die Vorschau-Seite ist dank pwa.py auf dem Handy als App installierbar (siehe README).
 """
 import json
 import urllib.parse
 
 from z2m import Zigbee2MQTT, Z2MError, MqttError, normalize_hex
+
+try:
+    import pwa                      # Startbildschirm-App (optional)
+except ImportError:                 # pragma: no cover
+    pwa = None
 
 PREFIX = "/api/z2m/"
 
@@ -253,7 +259,8 @@ class Z2MApi:
 # Standalone-Server (nur zum Testen / Vorschau des Info-Panels)
 # ---------------------------------------------------------------------------
 
-_PAGE = """<!doctype html><meta charset="utf-8"><title>Zigbee2MQTT · ThomysHomeAgent</title>
+_PAGE = """<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Zigbee2MQTT · ThomysHomeAgent</title>
+%%PWA_HEAD%%
 <style>body{font-family:system-ui,sans-serif;max-width:900px;margin:2em auto;padding:0 1em;background:#111;color:#eee}
 h1{font-size:1.3em}table{border-collapse:collapse;width:100%}td{padding:.3em .5em;border-bottom:1px solid #333;vertical-align:top}
 td:first-child{color:#9ab;width:34%}.ok{color:#5d5}.warn{color:#fb4}.bad{color:#f55}button{margin:.2em;padding:.4em .8em}
@@ -308,25 +315,31 @@ refresh();setInterval(refresh,5000);
 </script>"""
 
 
-def serve(cfg, port=8098):
+def serve(cfg, port=8098, certfile=None, keyfile=None):
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     z2m = Zigbee2MQTT(cfg)
     z2m.start(block_until_connected=False)
     api = Z2MApi(z2m)
+    page = _PAGE.replace("%%PWA_HEAD%%", pwa.head_tags() if pwa else "").encode("utf-8")
 
     class Handler(BaseHTTPRequestHandler):
+        def _raw(self, status, ctype, body):
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
         def _route(self):
             u = urllib.parse.urlsplit(self.path)
             params = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
             if u.path in ("/", "/index.html"):
-                body = _PAGE.encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-                return
+                return self._raw(200, "text/html; charset=utf-8", page)
+            if pwa and self.command == "GET":
+                hit = pwa.handle(u.path)
+                if hit is not None:
+                    return self._raw(*hit)
             hit = api.handle(self.command, u.path, params)
             if hit is None:
                 hit = (404, {"ok": False, "error": "nicht gefunden"})
@@ -344,7 +357,11 @@ def serve(cfg, port=8098):
             pass
 
     srv = HTTPServer(("0.0.0.0", port), Handler)
-    print("Zigbee2MQTT-Testserver auf http://0.0.0.0:%d  (Strg+C beendet)" % port)
+    scheme = "http"
+    if certfile and keyfile and pwa:
+        pwa.wrap_https(srv, certfile, keyfile)
+        scheme = "https"
+    print("Zigbee2MQTT-Testserver auf %s://0.0.0.0:%d  (Strg+C beendet)" % (scheme, port))
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
@@ -358,4 +375,6 @@ if __name__ == "__main__":
     from z2m import load_config
     cfg_path = sys.argv[1] if len(sys.argv) > 1 else "config.json"
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 8098
-    serve(load_config(cfg_path), port)
+    cert = sys.argv[3] if len(sys.argv) > 3 else None      # optional: python3 z2m_api.py config.json 8098 server.crt server.key
+    key = sys.argv[4] if len(sys.argv) > 4 else None
+    serve(load_config(cfg_path), port, cert, key)

@@ -766,6 +766,15 @@ class TestApi(Z2MTestCase):
         self.assertNotIn("%%", page)
         self.assertNotIn("onclick", page)                       # keine Inline-Handler mit Gerätenamen
         self.assertIn('data-name', page)
+        self.assertIn('rel="manifest"', page)                    # als App installierbar (pwa.py)
+        self.assertNotIn("%%PWA_HEAD%%", page)
+        r = urllib.request.urlopen("http://127.0.0.1:18098/manifest.webmanifest", timeout=3)
+        self.assertEqual(json.loads(r.read())["display"], "standalone")
+        r = urllib.request.urlopen("http://127.0.0.1:18098/icon-192.png", timeout=3)
+        self.assertEqual(r.headers["Content-Type"], "image/png")
+        self.assertEqual(r.read()[:8], b"\x89PNG\r\n\x1a\n")
+        r = urllib.request.urlopen("http://127.0.0.1:18098/sw.js", timeout=3)
+        self.assertIn(b"thomyshome-v", r.read())
 
 
 def _http_ok(url):

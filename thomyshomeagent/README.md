@@ -149,6 +149,46 @@ Diese Schritte setzen voraus, dass `z2m.py`, `z2m_api.py` und die neue `homebrai
     Erwartet: Status `online: true`, die Bar in der Leuchtenliste, und `✓ Bar blau` — die Bar wird tatsächlich blau. Danach `bar auf warmweiss` oder eine Szene, um den Zustand wiederherzustellen.
 8. **Nicht tun:** `mqtt_user`/`mqtt_pass` oder den HA-Token in Dateien ausserhalb von `config.json` schreiben; `/api/z2m/permit_join` oder `/api/z2m/restart` in Automatisierungen ohne Rückfrage aufrufen; Timeout- oder Reconnect-Logik in `lichtagent.py` nachbauen — `z2m.py` bringt sie mit.
 
+## Als App auf dem Handy (Android)
+
+Die App ist das bestehende Dashboard von `lichtapp.py`, das Chrome auf Android dank `pwa.py` als eigene App installiert: Icon auf dem Startbildschirm, Vollbild ohne Browserleiste, Start direkt ins Dashboard. Es läuft weiterhin über den Server auf dem Laptop (192.168.1.54:8099) — auf dem Handy wird nur die „Verpackung“ installiert.
+
+**Einbau in `lichtapp.py`** (2 Stellen, zusätzlich zur Checkliste oben):
+
+```python
+import pwa
+# im HTTP-Handler (GET), vor den eigenen Routen:
+hit = pwa.handle(path)                  # /manifest.webmanifest, /sw.js, /icon-*.png
+if hit is not None:
+    status, content_type, body = hit
+    # Antwort mit diesem Content-Type senden (wie bei den JSON-Antworten, aber Body = bytes)
+    return
+# im HTML des Dashboards innerhalb von <head>:
+html = html.replace("<head>", "<head>" + pwa.head_tags(), 1)
+```
+
+Zum Ausprobieren ohne `lichtapp.py`: `python3 z2m_api.py config.json 8098` — die Vorschau-Seite unter `http://192.168.1.54:8098` ist bereits so installierbar.
+
+**Chrome verlangt eine „sichere“ Adresse.** `http://192.168.1.54:8099` ist das nicht. Zwei Wege:
+
+1. **Schnell (nur dieses Handy):** In Chrome auf dem Handy `chrome://flags/#unsafely-treat-insecure-origin-as-secure` öffnen, dort `http://192.168.1.54:8099` (und ggf. `http://192.168.1.54:8098`) eintragen, auf „Enabled“ stellen, Chrome neu starten. Dann `http://192.168.1.54:8099` öffnen → Menü ⋮ → **„App installieren“** (oder „Zum Startbildschirm hinzufügen“).
+2. **Sauber (HTTPS mit eigener CA):** einmalig auf dem Laptop
+
+    ```bash
+    cd ~/lichtagent
+    openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -keyout ca.key -out ca.crt -subj "/CN=ThomysHome CA"
+    openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj "/CN=192.168.1.54"
+    printf "subjectAltName=IP:192.168.1.54\n" > san.ext
+    openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 3650 -extfile san.ext -out server.crt
+    chmod 600 ca.key server.key
+    ```
+
+    `ca.crt` aufs Handy kopieren und installieren (Einstellungen → Sicherheit → Verschlüsselung & Anmeldedaten → Zertifikat installieren → CA-Zertifikat). In `lichtapp.py` den `HTTPServer` vor `serve_forever()` mit `pwa.wrap_https(srv, "server.crt", "server.key")` umstellen; die Adresse ist dann `https://192.168.1.54:8099`. Der Testserver kann das direkt: `python3 z2m_api.py config.json 8098 server.crt server.key`.
+
+**Wie die App arbeitet:** Der Service Worker cacht nur die Oberfläche (Seite, Icons). Alles unter `/api/` geht immer live an den Laptop — es wird nie ein alter Lichtzustand aus dem Cache angezeigt. Ist der Laptop nicht erreichbar, öffnet die App die zuletzt geladene Oberfläche, Aktionen schlagen dann mit einer Fehlermeldung fehl. Nach Änderungen am Service Worker `SW_VERSION` in `pwa.py` erhöhen.
+
+**PicoClaw-Chat auf dem Handy:** unverändert über `http://192.168.1.45/#/picoclaw`; die App ersetzt nur das Dashboard, nicht den Chat.
+
 ## HTTP-API (`/api/z2m/*`, Port 8099)
 
 | Endpunkt                                                                                | Zweck                                                                                                    |
