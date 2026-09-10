@@ -31,7 +31,7 @@ Handy/Browser ──▶ PicoClaw (SMHUB) ──▶ ThomysHomeAgent :8099 (Laptop
 | `z2m.py`              | MQTT-Client (Subscribe, Keepalive, Reconnect) + `Zigbee2MQTT`-Klasse mit Cache, Anfragen mit `transaction`, Licht-Steuerung |
 | `z2m_api.py`          | HTTP-Endpunkte `/api/z2m/*` für `lichtapp.py`; läuft auch alleine als Testserver mit Vorschau-Seite                         |
 | `homebrain.py`        | Ersetzt die bisherige Datei: Zigbee-Leuchten aus Zigbee2MQTT sind Sprachbefehl-Ziele, HA und Zigbee laufen unabhängig       |
-| `test_z2m.py`         | 33 Tests mit simuliertem Broker und simuliertem Zigbee2MQTT 2.13.0 (`python3 test_z2m.py`)                                  |
+| `test_z2m.py`         | Tests mit simuliertem Broker und simuliertem Zigbee2MQTT 2.13.0 (`python3 test_z2m.py`)                                     |
 | `config.example.json` | Alle Schlüssel der `config.json` inkl. der neuen (ohne Zugangsdaten)                                                        |
 
 ## Installation auf dem Laptop (192.168.1.54)
@@ -61,7 +61,7 @@ Handy/Browser ──▶ PicoClaw (SMHUB) ──▶ ThomysHomeAgent :8099 (Laptop
     python3 z2m.py config.json
     ```
 
-    Erwartete erste Zeile: `Zigbee2MQTT 2.13.0 ✓ · online · N Geräte (M Leuchten)`. Bei `Nicht autorisiert (rc=5)` stimmen `mqtt_user`/`mqtt_pass` nicht (siehe SMHUB-Broker-Zugang).
+    Erwartete erste Zeile: `Zigbee2MQTT 2.13.0 ✓ · online · N Geräte (M Leuchten)`, danach die Zusammenfassung als JSON und die Leuchtenliste. Bei `Nicht autorisiert (rc=5)` stimmen `mqtt_user`/`mqtt_pass` nicht (siehe SMHUB-Broker-Zugang).
 
 4. **Vorschau des Info-Panels + Buttons zum Testen** (eigener Port, unabhängig von lichtapp.py):
 
@@ -104,7 +104,7 @@ Handy/Browser ──▶ PicoClaw (SMHUB) ──▶ ThomysHomeAgent :8099 (Laptop
 
 Diese Schritte setzen voraus, dass `z2m.py`, `z2m_api.py` und die neue `homebrain.py` bereits in `~/lichtagent/` liegen (Schritt 1 oben). `lichtapp.py` und `lichtagent.py` bleiben bis auf die genannten Stellen unverändert.
 
-1. **Vorher prüfen, dass der Broker erreichbar ist:** `cd ~/lichtagent && python3 z2m.py config.json` muss mit `Zigbee2MQTT 2.13.0 ✓ · online …` beginnen. Erst danach weiter.
+1. **Vorher prüfen, dass der Broker erreichbar ist:** `cd ~/lichtagent && python3 z2m.py config.json` muss als erste Zeile `Zigbee2MQTT 2.13.0 ✓ · online …` ausgeben. Erst danach weiter.
 2. **`lichtapp.py` — Imports:** neben den bestehenden Imports (`from homebrain import HomeBrain` o. ä.) ergänzen:
     ```python
     from z2m import Zigbee2MQTT
@@ -146,7 +146,7 @@ Diese Schritte setzen voraus, dass `z2m.py`, `z2m_api.py` und die neue `homebrai
     curl -s 'http://127.0.0.1:8099/api/z2m/lights'
     curl -s -X POST 'http://127.0.0.1:8099/api/ask?text=bar%20auf%20blau'
     ```
-    Erwartet: Status `online: true`, die Bar in der Leuchtenliste, und `✓ bar blau` — die Bar wird tatsächlich blau. Danach `bar auf warmweiss` oder eine Szene, um den Zustand wiederherzustellen.
+    Erwartet: Status `online: true`, die Bar in der Leuchtenliste, und `✓ Bar blau` — die Bar wird tatsächlich blau. Danach `bar auf warmweiss` oder eine Szene, um den Zustand wiederherzustellen.
 8. **Nicht tun:** `mqtt_user`/`mqtt_pass` oder den HA-Token in Dateien ausserhalb von `config.json` schreiben; `/api/z2m/permit_join` oder `/api/z2m/restart` in Automatisierungen ohne Rückfrage aufrufen; Timeout- oder Reconnect-Logik in `lichtagent.py` nachbauen — `z2m.py` bringt sie mit.
 
 ## HTTP-API (`/api/z2m/*`, Port 8099)
@@ -167,7 +167,7 @@ Diese Schritte setzen voraus, dass `z2m.py`, `z2m_api.py` und die neue `homebrai
 | `POST /api/z2m/rename?from=&to=`                                                        | Gerät umbenennen                                                                                         |
 | `POST /api/z2m/restart?confirm=1`                                                       | Zigbee2MQTT neu starten (nur mit `confirm=1`)                                                            |
 
-`name` ist der `friendly_name` oder die IEEE-Adresse (keine MQTT-Wildcards `+`/`#`). `wait` ist auf 10 s begrenzt, weil der HTTP-Server von lichtapp.py solange blockiert. Antworten: `{"ok":true,"result":…}` bzw. `{"ok":false,"error":"…"}` (HTTP 400 Parameter, 404 unbekannt, 502 Zigbee2MQTT/MQTT-Fehler).
+`name` ist der `friendly_name` oder die IEEE-Adresse (keine MQTT-Wildcards `+`/`#`). `wait` ist auf 10 s begrenzt, weil der HTTP-Server von lichtapp.py solange blockiert; aus demselben Grund warten `permit_join`, `health_check`, `coordinator_check`, `rename` und `restart` bis zu 10 s (coordinator_check 30 s) auf die Antwort der Bridge, brechen aber sofort ab, wenn `bridge/state` offline meldet. Zustände der Leuchten werden nach dem Start automatisch per `/get` geholt (Zigbee2MQTT sendet sie nicht retained). Antworten: `{"ok":true,"result":…}` bzw. `{"ok":false,"error":"…"}` (HTTP 400 Parameter, 404 unbekannt, 502 Zigbee2MQTT/MQTT-Fehler).
 
 Beispiele:
 
@@ -185,7 +185,7 @@ curl -s 'http://192.168.1.54:8099/api/z2m/lights'
 - **Szenen** in `scenes.json` können neben `bar` einen Block `"zigbee": {"<friendly_name>": {…/set-Payload…}}` enthalten, der beim Auslösen an die jeweiligen Leuchten geht.
 - Der System-Prompt für Ollama listet die Zigbee-Leuchten dynamisch (`%ZIGBEE%`), damit das Modell sie als `target` benutzen kann.
 - Ollama bleibt auf dem Laptop (`OLLAMA_URL = http://192.168.1.54:11434`, unverändert); ein späterer Umzug auf einen Pi 5 wäre möglich, ist hier aber nicht eingeplant.
-- Ohne `z2m=` verhält sich `HomeBrain` wie vorher (Bar über `agent.bar()` / `agent.z2m_set()`); einzig die neuen Synonyme aus `Z2M_GERAETE` (`lichtleiste`, `wandpanel`, …) gelten auch dann, weil sie aus `config.json` kommen.
+- Ohne `z2m=` benutzt `HomeBrain` wie vorher `agent.bar()` / `agent.z2m_set()` als Transport. Zwei Neuerungen gelten aber auch dann, weil sie aus `config.json` kommen: die Synonyme aus `Z2M_GERAETE` (`lichtleiste`, `wandpanel`, …) und dass „alles“ die Bar auch bei Helligkeit einschliesst. Wer exakt das alte Verhalten will, nimmt `homebrain.py.bak`.
 
 ## Sicherheit / Hinweise
 

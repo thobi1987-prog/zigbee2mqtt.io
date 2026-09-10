@@ -124,6 +124,9 @@ class MiniMqtt:
         self._pid = 0
         self._running = False
         self._threads = []
+        self._gen = 0                       # Generation: jeder start() erhöht sie, alte Threads beenden sich
+        self._stop_evt = threading.Event()  # weckt Backoff-Pausen bei stop()
+        self._conn_lock = threading.Lock()
         self._last_rx = 0.0
         self._last_tx = 0.0
         self.connected = False
@@ -131,8 +134,12 @@ class MiniMqtt:
         self.connect_count = 0
 
     # ---------- Verbindung ----------
-    def connect(self):
-        """Verbindet synchron (wirft MqttError bei Fehler)."""
+    def connect(self, gen=None):
+        """Verbindet synchron (wirft MqttError bei Fehler).
+
+        `gen` wird von den Hintergrund-Threads übergeben: gehört der Thread zu einer alten
+        Generation (stop()/start() dazwischen), wird die frische Verbindung verworfen.
+        """
         try:
             sock = socket.create_connection((self.host, self.port), timeout=self.timeout)
         except OSError as e:
@@ -161,11 +168,15 @@ class MiniMqtt:
         if rc != 0:
             sock.close()
             raise MqttError(_CONNACK_ERRORS.get(rc, "CONNACK-Fehler rc=%d" % rc))
-        self._sock = sock
-        self.connected = True
-        self.connect_count += 1
-        self.last_error = None
-        self._last_rx = self._last_tx = time.time()
+        with self._conn_lock:
+            if gen is not None and gen != self._gen:
+                sock.close()
+                raise MqttError("Verbindungsaufbau verworfen (Client wurde zwischenzeitlich neu gestartet)")
+            self._sock = sock
+            self.connected = True
+            self.connect_count += 1
+            self.last_error = None
+            self._last_rx = self._last_tx = time.time()
         # Abos erneuern (bei Reconnect)
         for topic, qos in list(self._subs.items()):
             self._send_subscribe(topic, qos)
@@ -184,12 +195,15 @@ class MiniMqtt:
         """
         if self._running:
             return
+        self._gen += 1                       # alte Threads (falls noch in connect()/Backoff) laufen aus
+        gen = self._gen
+        self._stop_evt.clear()
         self.auto_reconnect = self._reconnect_wanted
         if block_until_connected:
-            self.connect()  # erster Verbindungsversuch synchron → Fehler sofort sichtbar
+            self.connect(gen)  # erster Verbindungsversuch synchron → Fehler sofort sichtbar
         self._running = True
-        t1 = threading.Thread(target=self._reader_loop, name="mqtt-reader", daemon=True)
-        t2 = threading.Thread(target=self._keepalive_loop, name="mqtt-keepalive", daemon=True)
+        t1 = threading.Thread(target=self._reader_loop, args=(gen,), name="mqtt-reader-%s" % self.client_id, daemon=True)
+        t2 = threading.Thread(target=self._keepalive_loop, args=(gen,), name="mqtt-keepalive-%s" % self.client_id, daemon=True)
         self._threads = [t1, t2]
         t1.start()
         t2.start()
@@ -197,6 +211,7 @@ class MiniMqtt:
     def stop(self):
         self._running = False
         self.auto_reconnect = False       # während des Herunterfahrens nicht neu verbinden
+        self._stop_evt.set()              # Backoff-Pause sofort abbrechen
         sock = self._sock
         if sock is not None:
             try:
@@ -214,6 +229,10 @@ class MiniMqtt:
         self.connected = False
         sock, self._sock = self._sock, None
         if sock is not None:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)   # weckt einen in recv() blockierten Leser sofort
+            except OSError:
+                pass
             try:
                 sock.close()
             except OSError:
@@ -303,19 +322,24 @@ class MiniMqtt:
             raise MqttError("Timeout mitten im MQTT-Paket")
         return first >> 4, first & 0x0F, body
 
-    def _reader_loop(self):
+    def _alive(self, gen):
+        return self._running and self._gen == gen
+
+    def _reader_loop(self, gen):
         backoff = 1
-        while self._running:
+        while self._alive(gen):
             sock = self._sock
             if sock is None or not self.connected:
                 if not self.auto_reconnect:
                     return
                 try:
-                    self.connect()
+                    self.connect(gen)
                     backoff = 1
                 except MqttError as e:
+                    if not self._alive(gen):
+                        return
                     self.last_error = str(e)
-                    time.sleep(backoff)
+                    self._stop_evt.wait(backoff)
                     backoff = min(backoff * 2, 30)
                 continue
             try:
@@ -323,7 +347,7 @@ class MiniMqtt:
             except socket.timeout:
                 continue
             except (OSError, MqttError) as e:
-                if self._running:
+                if self._alive(gen):
                     self.last_error = str(e)
                     self._close()
                 continue
@@ -359,11 +383,11 @@ class MiniMqtt:
             except Exception as e:  # Callback-Fehler dürfen den Leser nicht beenden
                 self.last_error = "on_message(%s): %s" % (topic, e)
 
-    def _keepalive_loop(self):
+    def _keepalive_loop(self, gen):
         interval = max(5, self.keepalive // 2)
-        while self._running:
-            time.sleep(1)
-            if not self.connected:
+        while self._alive(gen):
+            self._stop_evt.wait(1)
+            if not self._alive(gen) or not self.connected:
                 continue
             now = time.time()
             if now - self._last_rx > self.keepalive * 1.5:
@@ -435,6 +459,7 @@ class Zigbee2MQTT:
         self.last_error = None
 
         self._pending = {}            # transaction -> {"event": Event, "response": dict}
+        self._state_requested = set() # Leuchten, für die nach bridge/devices bereits ein /get gesendet wurde
         self._tx = int(time.time()) % 10000
         self._lock = threading.Lock()
 
@@ -523,6 +548,7 @@ class Zigbee2MQTT:
         elif sub == "devices" and isinstance(data, list):
             with self._lock:
                 self.devices = data
+            self._request_missing_states()
         elif sub == "groups" and isinstance(data, list):
             with self._lock:
                 self.groups = data
@@ -539,13 +565,32 @@ class Zigbee2MQTT:
                 p["response"] = data
                 p["event"].set()
 
+    def _request_missing_states(self):
+        """Zigbee2MQTT sendet Gerätezustände standardmässig NICHT retained — nach einem Neustart
+        der App wären die Leuchten bis zur nächsten Änderung 'unbekannt'. Deshalb einmalig
+        pro Leuchte ein /get schicken, wenn noch kein Zustand im Cache liegt."""
+        for light in self.lights():
+            name = light["friendly_name"]
+            if light["state"] is None and name not in self._state_requested:
+                self._state_requested.add(name)
+                try:
+                    self.get(name, ("state", "brightness"))
+                except Z2MError:
+                    self._state_requested.discard(name)
+
     # ---------- Anfragen an die Bridge ----------
     def request(self, path, payload=None, timeout=10.0):
         """Sendet <base>/bridge/request/<path> und wartet auf die Antwort.
 
         Gibt das 'data'-Objekt der Antwort zurück; wirft Z2MError bei
-        status=error, Timeout oder fehlender Verbindung.
+        status=error, Timeout oder fehlender Verbindung. Ist die Bridge laut
+        bridge/state offline, wird sofort abgebrochen statt bis zum Timeout zu warten
+        (der HTTP-Server von lichtapp.py ist einfädig).
         """
+        if not self.mqtt.connected:
+            raise Z2MError("MQTT nicht verbunden (%s)" % (self.mqtt.last_error or "keine Verbindung"))
+        if self.bridge_state == "offline":
+            raise Z2MError("Zigbee2MQTT ist offline (bridge/state) — '%s' nicht gesendet" % path)
         payload = dict(payload or {})
         with self._lock:
             self._tx = (self._tx % 1000000) + 1
@@ -856,12 +901,12 @@ if __name__ == "__main__":  # kleiner Selbsttest: python3 z2m.py [config.json]
     except MqttError as e:
         print("FEHLER:", e)
         sys.exit(1)
-    print("Verbunden mit %s, warte auf bridge/info …" % z.mqtt.host)
     for _ in range(50):
         if z.info and z.devices:
             break
         time.sleep(0.2)
-    print(z.status_text())
+    print(z.status_text())                       # erste Zeile: Statuszeile (siehe README)
+    print("(verbunden mit %s:%s als %s)" % (z.mqtt.host, z.mqtt.port, z.mqtt.client_id))
     print(json.dumps(z.summary(), indent=2, ensure_ascii=False, default=str))
     for l in z.lights():
         print(" - %-28s %-12s %s (%s)" % (l["friendly_name"], l["state"] or "?", l["description"], ", ".join(l["features"])))

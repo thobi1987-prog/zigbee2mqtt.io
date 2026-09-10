@@ -297,7 +297,8 @@ class FakeZ2M:
         self.mqtt.publish(self.base + "/bridge/groups", [{"id": 1, "friendly_name": "Alle Leuchten", "scenes": [], "members": []}], retain=True)
         self.mqtt.publish(self.base + "/bridge/health", HEALTH, retain=True)
         for name, st in self.states.items():
-            self.mqtt.publish("%s/%s" % (self.base, name), st, retain=True)
+            # Wie echtes Zigbee2MQTT (device retain: false): Zustände NICHT retained → Client muss /get schicken
+            self.mqtt.publish("%s/%s" % (self.base, name), st, retain=False)
             self.mqtt.publish("%s/%s/availability" % (self.base, name), {"state": "online"}, retain=True)
 
     def _on_message(self, topic, raw):
@@ -345,7 +346,7 @@ class FakeZ2M:
                     st["state"] = "OFF" if st.get("state") == "ON" else "ON"
                 else:
                     st[k] = v
-        self.mqtt.publish("%s/%s" % (self.base, name), self.states[name], retain=True)
+        self.mqtt.publish("%s/%s" % (self.base, name), self.states[name], retain=False)
 
 
 def wait_for(cond, timeout=5.0, step=0.02):
@@ -378,6 +379,7 @@ class Z2MTestCase(unittest.TestCase):
         z.start()
         self.addCleanup(z.stop)
         self.assertTrue(wait_for(lambda: z.info and z.devices and z.bridge_state == "online"), "Cache nicht befüllt")
+        self.assertTrue(wait_for(lambda: z.state("ThomysHomeBar") and z.state("0x001788010efccbdb")), "Zustände nicht per /get geholt")
         return z
 
 
@@ -438,6 +440,36 @@ class TestMqtt(Z2MTestCase):
         z2 = self.make_client()                                # normale Abos sind unbeeinträchtigt
         self.assertEqual(z2.mqtt.rejected_subscriptions, [])
 
+    def test_states_fetched_after_restart(self):
+        """Nach einem App-Neustart sind die Zustände nicht retained — der Client holt sie per /get."""
+        n_get = len(self.broker.messages("zigbee2mqtt/ThomysHomeBar/get"))
+        z = self.make_client()
+        self.assertEqual(z.state("ThomysHomeBar")["state"], self.fake.states["ThomysHomeBar"]["state"])
+        self.assertGreaterEqual(len(self.broker.messages("zigbee2mqtt/ThomysHomeBar/get")), n_get + 1)
+        self.assertIn("ThomysHomeBar", z._state_requested)
+        # erneutes bridge/devices löst kein zweites /get aus, solange der Zustand bekannt ist
+        n_get = len(self.broker.messages("zigbee2mqtt/ThomysHomeBar/get"))
+        self.fake.mqtt.publish("zigbee2mqtt/bridge/devices", DEVICES, retain=True)
+        time.sleep(0.3)
+        self.assertEqual(len(self.broker.messages("zigbee2mqtt/ThomysHomeBar/get")), n_get)
+
+    def test_stop_during_backoff_then_start_has_single_thread_pair(self):
+        z = self.make_client()
+        cid = z.mqtt.client_id
+        mine = lambda: [t for t in threading.enumerate() if t.name.endswith(cid) and t.is_alive()]
+        self.assertEqual(len(mine()), 2)
+        z.mqtt.port = 1                                   # Reconnect schlägt fehl → Backoff-Schleife
+        self.broker.kick(cid)
+        self.assertTrue(wait_for(lambda: z.mqtt.last_error and "fehlgeschlagen" in z.mqtt.last_error, 5))
+        t0 = time.time()
+        z.stop()                                          # muss die Backoff-Pause sofort abbrechen
+        self.assertLess(time.time() - t0, 3)
+        z.mqtt.port = self.broker.port
+        z.start()
+        self.assertTrue(z.connected)
+        self.assertTrue(wait_for(lambda: len(mine()) == 2, 5), "alte Threads leben weiter: %r" % [t.name for t in mine()])
+        self.assertTrue(wait_for(lambda: z.info and z.state("ThomysHomeBar")))
+
     def test_reconnect_after_kick(self):
         z = self.make_client()
         cid = z.mqtt.client_id
@@ -446,9 +478,9 @@ class TestMqtt(Z2MTestCase):
         self.assertTrue(wait_for(lambda: z.connected and z.mqtt.connect_count == 2, 8), "kein Reconnect")
         # Nach dem Reconnect kommen neue Nachrichten wieder an (Abo erneuert)
         before = z.states["ThomysHomeBar"].get("brightness")
-        self.fake.mqtt.publish("zigbee2mqtt/ThomysHomeBar", {"state": "ON", "brightness": 42}, retain=True)
+        self.fake.mqtt.publish("zigbee2mqtt/ThomysHomeBar", {"state": "ON", "brightness": 42})
         self.assertTrue(wait_for(lambda: z.states["ThomysHomeBar"].get("brightness") == 42))
-        self.fake.mqtt.publish("zigbee2mqtt/ThomysHomeBar", {"state": "ON", "brightness": before}, retain=True)
+        self.fake.mqtt.publish("zigbee2mqtt/ThomysHomeBar", {"state": "ON", "brightness": before})
 
 
 class TestZigbee2MQTT(Z2MTestCase):
@@ -592,6 +624,11 @@ class TestZigbee2MQTT(Z2MTestCase):
         self.assertTrue(wait_for(lambda: z.bridge_state == "offline"))
         self.assertFalse(z.summary()["online"])
         self.assertIn("Bridge offline", z.status_text())
+        t0 = time.time()
+        with self.assertRaises(Z2MError) as cm:            # sofort, nicht erst nach dem Timeout
+            z.permit_join(10)
+        self.assertIn("offline", str(cm.exception))
+        self.assertLess(time.time() - t0, 1)
         self.fake.mqtt.publish("zigbee2mqtt/bridge/state", {"state": "online"}, retain=True)
         self.assertTrue(wait_for(lambda: z.bridge_state == "online"))
 
@@ -843,6 +880,10 @@ class TestHomeBrain(Z2MTestCase):
         self.assertEqual(hb._rules("alles aus ausser küche"), [{"action": "power", "target": "all", "on": False, "except": ["küche"]}])
         self.assertEqual(hb._rules("alles grün ausser küche"), [{"action": "color", "target": "all", "color": "grün", "except": ["küche"]}])
         self.assertEqual(hb._rules("alles aus"), [{"action": "power", "target": "all", "on": False}])
+        self.assertEqual(hb._rules("alles dunkler ausser küche"), [{"action": "brightness", "target": "all", "pct": 25, "except": ["küche"]}])
+        self.assertEqual(hb.handle("alles dunkler ausser küche"), "✓ all 25% (ausser küche)")
+        self.assertEqual(agent.ha.calls, [("light", ["light.stube"], {"brightness_pct": 25, "transition": 2})])
+        agent.ha.calls.clear()
         n_bar, n_panel = len(self.sets("ThomysHomeBar")), len(self.sets("0x001788010efccbdb"))
         self.assertEqual(hb.handle("alles aus ausser küche"), "✓ all aus (ausser küche)")
         self.assertEqual(agent.ha.calls, [("light_off", ["light.stube", "light.flur_flur", "light.65pus8000_12_ambilight"], {"transition": 2})])
@@ -914,7 +955,7 @@ class TestHomeBrain(Z2MTestCase):
         self.assertEqual(hb.handle("schliess die tür ab"), "✓ Tür abgeschlossen")
         self.assertEqual(agent.nuki, [("nuki/4BCE74DF/lockAction", "2")])
 
-    def test_without_z2m_behaves_like_before(self):
+    def test_without_z2m_uses_agent_transport(self):
         hb, agent, z = self.brain(with_z2m=False)
         self.assertIsNone(hb.z2m)
         self.assertEqual(hb.handle("bar auf blau"), "✓ Bar blau")

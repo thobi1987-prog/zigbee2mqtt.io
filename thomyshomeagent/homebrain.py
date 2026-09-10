@@ -175,8 +175,8 @@ class HomeBrain:
             target = "bar"
         if col:
             return [{"action": "color", "target": target, "color": col, "except": exc}]
-        if "heller" in t: return [{"action": "brightness", "target": target, "pct": 85}]
-        if "dunkler" in t or "dimm" in t: return [{"action": "brightness", "target": target, "pct": 25}]
+        if "heller" in t: return [{"action": "brightness", "target": target, "pct": 85, "except": exc}]
+        if "dunkler" in t or "dimm" in t: return [{"action": "brightness", "target": target, "pct": 25, "except": exc}]
         return []
 
     # ---------- Ausführung ----------
