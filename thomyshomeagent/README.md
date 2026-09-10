@@ -24,19 +24,24 @@ Handy/Browser ──▶ PicoClaw (SMHUB) ──▶ ThomysHomeAgent :8099 (Laptop
                                      Home Assistant            Zigbee2MQTT 2.13.0 (SMHUB)
 ```
 
+Das Konzept in `docs/ThomysHomeAgent_RaspberryPi_Konzept.pdf` sieht vor, dass ThomysHomeAgent, Zigbee2MQTT und der MQTT-Broker später gemeinsam auf einem Raspberry Pi laufen und das Handy nur über ThomysHomeAgent steuert. Genau so ist diese Integration gebaut: reine Standardbibliothek, alle Zugangsdaten bleiben in `config.json` auf dem Server, die App spricht nur mit `/api/…`. Für den Umzug auf den Pi müssen nur `mqtt_host` (dann `localhost`) und die Adresse in `z2m_frontend_url` angepasst werden.
+
 ## Dateien
 
-| Datei                 | Zweck                                                                                                                       |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `z2m.py`              | MQTT-Client (Subscribe, Keepalive, Reconnect) + `Zigbee2MQTT`-Klasse mit Cache, Anfragen mit `transaction`, Licht-Steuerung |
-| `z2m_api.py`          | HTTP-Endpunkte `/api/z2m/*` für `lichtapp.py`; läuft auch alleine als Testserver mit Vorschau-Seite                         |
-| `homebrain.py`        | Ersetzt die bisherige Datei: Zigbee-Leuchten aus Zigbee2MQTT sind Sprachbefehl-Ziele, HA und Zigbee laufen unabhängig       |
-| `test_z2m.py`         | Tests mit simuliertem Broker und simuliertem Zigbee2MQTT 2.13.0 (`python3 test_z2m.py`)                                     |
-| `config.example.json` | Alle Schlüssel der `config.json` inkl. der neuen (ohne Zugangsdaten)                                                        |
+| Datei                 | Zweck                                                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `z2m.py`              | MQTT-Client (Subscribe, Keepalive, Reconnect) + `Zigbee2MQTT`-Klasse mit Cache, Anfragen mit `transaction`, Licht-Steuerung                      |
+| `z2m_api.py`          | HTTP-Endpunkte `/api/z2m/*` für `lichtapp.py`; läuft auch alleine als Testserver mit Vorschau-Seite                                              |
+| `homebrain.py`        | Ersetzt die bisherige Datei: Zigbee-Leuchten aus Zigbee2MQTT sind Sprachbefehl-Ziele, HA und Zigbee laufen unabhängig                            |
+| `test_z2m.py`         | Tests mit simuliertem Broker und simuliertem Zigbee2MQTT 2.13.0 (`python3 test_z2m.py`)                                                          |
+| `pwa.py`              | Macht das Dashboard auf dem Handy als App installierbar (Manifest, Service Worker, Icons); `test_pwa.py` testet es                               |
+| `desktop_icon.py`     | Legt das Projekt mit Icon auf den Schreibtisch des Laptops und kopiert dabei alle Dateien nach `~/lichtagent/`; `test_desktop_icon.py` testet es |
+| `docs/`               | Konzept „ThomysHomeAgent auf dem Raspberry Pi“ (PDF) und weitere Unterlagen zum Projekt                                                          |
+| `config.example.json` | Alle Schlüssel der `config.json` inkl. der neuen (ohne Zugangsdaten)                                                                             |
 
 ## Installation auf dem Laptop (192.168.1.54)
 
-1. **Dateien kopieren** (bisherige `homebrain.py` sichern):
+1. **Dateien kopieren** — am einfachsten mit `python3 desktop_icon.py` aus dem heruntergeladenen Ordner (kopiert alles nach `~/lichtagent/`, sichert die bisherige `homebrain.py` als `homebrain.py.bak`, fasst `lichtapp.py`, `lichtagent.py` und `config.json` nicht an und legt das Projekt mit Icon auf den Schreibtisch, siehe unten). Von Hand geht es so (bisherige `homebrain.py` sichern):
 
     ```bash
     cd ~/lichtagent
@@ -148,6 +153,17 @@ Diese Schritte setzen voraus, dass `z2m.py`, `z2m_api.py` und die neue `homebrai
     ```
     Erwartet: Status `online: true`, die Bar in der Leuchtenliste, und `✓ Bar blau` — die Bar wird tatsächlich blau. Danach `bar auf warmweiss` oder eine Szene, um den Zustand wiederherzustellen.
 8. **Nicht tun:** `mqtt_user`/`mqtt_pass` oder den HA-Token in Dateien ausserhalb von `config.json` schreiben; `/api/z2m/permit_join` oder `/api/z2m/restart` in Automatisierungen ohne Rückfrage aufrufen; Timeout- oder Reconnect-Logik in `lichtagent.py` nachbauen — `z2m.py` bringt sie mit.
+
+## Projekt auf dem Schreibtisch (Laptop)
+
+`python3 desktop_icon.py` legt auf dem Schreibtisch des Laptops zwei Dinge an:
+
+- **Ordner „ThomysHome“** mit dem Projekt-Icon (Lampe auf dunklem Grund): eine Verknüpfung auf `~/lichtagent/`, in dem alle Dateien liegen — `lichtapp.py`, `lichtagent.py`, `homebrain.py`, `z2m.py`, `z2m_api.py`, `pwa.py`, `README.md`, `docs/` mit dem Raspberry-Pi-Konzept, `icons/`, und die eigenen Daten (`config.json`, `settings.json`, `scenes.json`, `layout.json`).
+- **Starter „ThomysHome“** (auch im Anwendungsmenü), der das Dashboard `http://127.0.0.1:8099` im Browser öffnet. Mit `--url http://192.168.1.54:8099` lässt sich eine andere Adresse eintragen.
+
+Vorher kopiert das Skript alle Projektdateien aus seinem eigenen Ordner nach `~/lichtagent/` (`--app-dir` für einen anderen Ort, `--no-copy` nur für die Verknüpfungen). Deine bestehenden Dateien werden nie überschrieben, einzig `homebrain.py` wird ersetzt und vorher als `homebrain.py.bak` gesichert. `python3 desktop_icon.py --remove` entfernt die Verknüpfungen wieder, die Dateien bleiben. Unter Windows wird stattdessen der Ordner auf den Desktop kopiert und eine `.url`-Verknüpfung angelegt.
+
+Dasselbe Icon benutzt die Handy-App (siehe nächster Abschnitt).
 
 ## Als App auf dem Handy (Android)
 
