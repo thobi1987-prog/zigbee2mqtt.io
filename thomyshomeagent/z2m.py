@@ -437,6 +437,7 @@ class Zigbee2MQTT:
     """Hält die Verbindung zu Zigbee2MQTT und einen Cache aller Bridge-/Gerätedaten."""
 
     DEFAULT_EXPECTED_VERSION = "2.13.0"
+    STATE_RETRY_SEC = 30.0        # /get für unbekannte Zustände frühestens alle 30 s wiederholen
 
     def __init__(self, cfg, on_event=None, client_id=None):
         self.cfg = cfg or {}
@@ -459,7 +460,7 @@ class Zigbee2MQTT:
         self.last_error = None
 
         self._pending = {}            # transaction -> {"event": Event, "response": dict}
-        self._state_requested = set() # Leuchten, für die nach bridge/devices bereits ein /get gesendet wurde
+        self._state_requested = {}    # friendly_name -> Zeitpunkt des letzten /get ohne bekannten Zustand
         self._tx = int(time.time()) % 10000
         self._lock = threading.Lock()
 
@@ -490,6 +491,8 @@ class Zigbee2MQTT:
 
     # ---------- Eingehende Nachrichten ----------
     def _on_connect(self, _client):
+        with self._lock:
+            self._state_requested.clear()   # nach (Re-)Connect Zustände erneut anfordern (retained bridge/devices folgt)
         self._emit({"type": "mqtt_connected", "data": {"host": self.mqtt.host}})
 
     def _emit(self, event):
@@ -541,10 +544,13 @@ class Zigbee2MQTT:
             self.bridge_state = state
             if changed:
                 self._emit({"type": "bridge_state", "data": {"state": state}})
+                if state == "online":
+                    self._request_missing_states()   # Bridge (wieder) da → fehlende Zustände nachholen
         elif sub == "info" and isinstance(data, dict):
             self.info = data
         elif sub == "health" and isinstance(data, dict):
             self.health = data
+            self._request_missing_states()           # periodisch (Health-Intervall, Standard 10 min) erneut versuchen
         elif sub == "devices" and isinstance(data, list):
             with self._lock:
                 self.devices = data
@@ -567,16 +573,29 @@ class Zigbee2MQTT:
 
     def _request_missing_states(self):
         """Zigbee2MQTT sendet Gerätezustände standardmässig NICHT retained — nach einem Neustart
-        der App wären die Leuchten bis zur nächsten Änderung 'unbekannt'. Deshalb einmalig
-        pro Leuchte ein /get schicken, wenn noch kein Zustand im Cache liegt."""
+        der App wären die Leuchten bis zur nächsten Änderung 'unbekannt'. Deshalb pro Leuchte
+        ohne Zustand ein /get schicken; geht es verloren (QoS 0), wird frühestens nach
+        STATE_RETRY_SEC erneut gefragt (bei bridge/devices, bridge/state online, bridge/health).
+        Nach einem Reconnect beginnt die Zählung von vorn."""
+        if self.bridge_state == "offline" or not self.mqtt.connected:
+            return
+        now = time.time()
         for light in self.lights():
             name = light["friendly_name"]
-            if light["state"] is None and name not in self._state_requested:
-                self._state_requested.add(name)
-                try:
-                    self.get(name, ("state", "brightness"))
-                except Z2MError:
-                    self._state_requested.discard(name)
+            if light["state"] is not None:
+                with self._lock:
+                    self._state_requested.pop(name, None)
+                continue
+            with self._lock:
+                last = self._state_requested.get(name)
+                if last is not None and now - last < self.STATE_RETRY_SEC:
+                    continue
+                self._state_requested[name] = now
+            try:
+                self.get(name, ("state", "brightness"))
+            except Z2MError:
+                with self._lock:
+                    self._state_requested.pop(name, None)
 
     # ---------- Anfragen an die Bridge ----------
     def request(self, path, payload=None, timeout=10.0):

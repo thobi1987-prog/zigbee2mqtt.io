@@ -277,6 +277,7 @@ class FakeZ2M:
         self.states = {"ThomysHomeBar": {"state": "ON", "brightness": 200, "color": {"x": 0.3, "y": 0.3}, "linkquality": 120},
                        "0x001788010efccbdb": {"state": "OFF", "brightness": 254, "linkquality": 90}}
         self.requests = []
+        self.drop_get = False        # True: /get-Anfragen ignorieren (verlorene QoS-0-Nachricht simulieren)
         self.mqtt = MiniMqtt("127.0.0.1", broker.port, user, password, client_id="fake-z2m",
                              on_message=self._on_message, on_connect=self._on_connect)
         self.mqtt.subscribe(base + "/bridge/request/#")
@@ -331,6 +332,8 @@ class FakeZ2M:
             return
         parts = rest.split("/")
         name, cmd = "/".join(parts[:-1]), parts[-1]
+        if cmd == "get" and self.drop_get:
+            return
         if name not in self.states:
             self.mqtt.publish(self.base + "/bridge/logging", {"level": "error", "message": "Entity '%s' is unknown" % name, "namespace": "z2m"})
             return
@@ -446,12 +449,43 @@ class TestMqtt(Z2MTestCase):
         z = self.make_client()
         self.assertEqual(z.state("ThomysHomeBar")["state"], self.fake.states["ThomysHomeBar"]["state"])
         self.assertGreaterEqual(len(self.broker.messages("zigbee2mqtt/ThomysHomeBar/get")), n_get + 1)
-        self.assertIn("ThomysHomeBar", z._state_requested)
         # erneutes bridge/devices löst kein zweites /get aus, solange der Zustand bekannt ist
         n_get = len(self.broker.messages("zigbee2mqtt/ThomysHomeBar/get"))
         self.fake.mqtt.publish("zigbee2mqtt/bridge/devices", DEVICES, retain=True)
         time.sleep(0.3)
         self.assertEqual(len(self.broker.messages("zigbee2mqtt/ThomysHomeBar/get")), n_get)
+        self.assertNotIn("ThomysHomeBar", z._state_requested)      # Zustand bekannt → Merker entfernt
+
+    def test_missing_states_are_retried(self):
+        """Geht das /get verloren (QoS 0), wird es nach STATE_RETRY_SEC erneut versucht — und nach Reconnect sofort."""
+        self.fake.drop_get = True
+        try:
+            cfg = dict(CFG, mqtt_port=self.broker.port)
+            z = Zigbee2MQTT(cfg, client_id="retry-%d" % (time.time_ns() % 100000))
+            z.STATE_RETRY_SEC = 0.3
+            z.start()
+            self.addCleanup(z.stop)
+            self.assertTrue(wait_for(lambda: z.info and z.devices and z.bridge_state == "online"))
+            gets = lambda: len([g for g in self.broker.received if g[0] == "zigbee2mqtt/ThomysHomeBar/get"])
+            n0 = gets()
+            self.assertIsNone(z.state("ThomysHomeBar"))
+            self.fake.mqtt.publish("zigbee2mqtt/bridge/devices", DEVICES, retain=True)   # zu früh → kein Retry
+            time.sleep(0.15)
+            self.assertEqual(gets(), n0)
+            time.sleep(0.3)
+            self.fake.mqtt.publish("zigbee2mqtt/bridge/health", HEALTH, retain=True)      # Retry über Health-Tick
+            self.assertTrue(wait_for(lambda: gets() == n0 + 1))
+            self.assertIsNone(z.state("ThomysHomeBar"))                                  # immer noch verloren
+            # Reconnect: Merker werden gelöscht, /get kommt sofort wieder (retained bridge/devices)
+            n1 = gets()
+            self.broker.kick(z.mqtt.client_id)
+            self.assertTrue(wait_for(lambda: z.mqtt.connect_count == 2 and gets() >= n1 + 1, 8))
+            self.fake.drop_get = False                                                    # Netz wieder ok
+            time.sleep(0.35)
+            self.fake.mqtt.publish("zigbee2mqtt/bridge/health", HEALTH, retain=True)
+            self.assertTrue(wait_for(lambda: z.state("ThomysHomeBar") is not None))
+        finally:
+            self.fake.drop_get = False
 
     def test_stop_during_backoff_then_start_has_single_thread_pair(self):
         z = self.make_client()
