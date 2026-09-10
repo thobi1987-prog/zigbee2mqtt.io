@@ -20,7 +20,7 @@ Zigbee2MQTT-Integration (z2m.py):
   und "alles" umfasst HA-Lichter + Zigbee-Leuchten. Ohne z2m verhält sich
   alles wie bisher (nur die Bar über agent.z2m_set / agent.bar).
 """
-import json, re, urllib.request
+import json, os, re, sys, urllib.request
 
 OLLAMA_URL = "http://192.168.1.54:11434"
 DEFAULT_MODEL = "llama3.2:3b"
@@ -82,12 +82,39 @@ Beispiele:
 "bar auf lila, essen gedimmt, küche warm" -> {"actions":[{"action":"color","target":"bar","color":"lila"},{"action":"brightness","target":"essen","pct":25},{"action":"brightness","target":"küche","pct":60}]}
 """
 
+_Z2M_AUTO = None   # ein gemeinsamer Zigbee2MQTT-Client pro Prozess, wenn lichtapp.py keinen übergibt
+
+
+def _auto_z2m(cfg):
+    """Eigenen Zigbee2MQTT-Client aus config.json starten (z2m_autoconnect, Standard: an).
+
+    Damit kennt HomeBrain alle Zigbee-Leuchten, auch wenn lichtapp.py unverändert bleibt.
+    Verbindet im Hintergrund; ohne Broker läuft alles wie bisher über agent.z2m_set().
+    """
+    global _Z2M_AUTO
+    if _Z2M_AUTO is not None:
+        return _Z2M_AUTO
+    if not cfg or not cfg.get("mqtt_host") or cfg.get("z2m_autoconnect") is False:
+        return None
+    try:
+        from z2m import Zigbee2MQTT
+        z = Zigbee2MQTT(cfg, client_id="thomyshomeagent-brain-%d" % os.getpid())
+        z.start(block_until_connected=False)
+    except Exception as e:  # z2m.py fehlt oder Konfiguration unbrauchbar → wie bisher ohne Zigbee-Client
+        print("homebrain: kein Zigbee2MQTT-Client (%s)" % e, file=sys.stderr)
+        return None
+    _Z2M_AUTO = z
+    return z
+
+
 class HomeBrain:
     def __init__(self, agent, model=DEFAULT_MODEL, z2m=None):
         self.a = agent
         self.model = model
-        # Zigbee2MQTT-Client (z2m.Zigbee2MQTT) — optional, sonst wie bisher nur die Bar
+        # Zigbee2MQTT-Client (z2m.Zigbee2MQTT): übergeben, am Agenten, oder automatisch aus config.json
         self.z2m = z2m if z2m is not None else getattr(agent, "z2m", None)
+        if self.z2m is None:
+            self.z2m = _auto_z2m(getattr(agent, "cfg", None))
 
     def _load_scenes(self):
         import os
@@ -261,8 +288,8 @@ class HomeBrain:
         return bool(l["color"]) if l else None
 
     def _z2m_send(self, name, payload):
-        """Schickt ein /set an Zigbee2MQTT — über z2m.py wenn vorhanden, sonst wie bisher."""
-        if self.z2m is not None:
+        """Schickt ein /set an Zigbee2MQTT — über z2m.py wenn verbunden, sonst wie bisher über den Agenten."""
+        if self.z2m is not None and self.z2m.connected:
             self.z2m.set(name, payload)
         else:
             self.a.z2m_set(name, payload)

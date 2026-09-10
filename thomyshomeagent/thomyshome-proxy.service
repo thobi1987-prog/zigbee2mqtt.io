@@ -1,0 +1,18 @@
+# ThomysHome-Proxy: Zigbee-Seite (/zigbee), /api/z2m/* und Handy-App vor lichtapp.py — ohne lichtapp.py zu ändern.
+# Installieren (User-Dienst, wie thomyshomeagent.service):
+#   mkdir -p ~/.config/systemd/user && cp ~/lichtagent/thomyshome-proxy.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now thomyshome-proxy.service
+#   systemctl --user status thomyshome-proxy.service
+[Unit]
+Description=ThomysHome Proxy (Zigbee-Seite, Handy-App) vor lichtapp.py
+After=network-online.target thomyshomeagent.service
+Wants=thomyshomeagent.service
+
+[Service]
+WorkingDirectory=%h/lichtagent
+ExecStart=/usr/bin/python3 %h/lichtagent/thomyshome_proxy.py --config config.json --port 8098 --upstream http://127.0.0.1:8099
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

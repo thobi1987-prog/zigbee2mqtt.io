@@ -8,6 +8,7 @@
     "z2m_base": "zigbee2mqtt",
     "z2m_expected_version": "2.13.0",
     "z2m_frontend_url": "http://192.168.1.45:8080",
+    "z2m_autoconnect": true,
     "bar": "ThomysHomeBar",
     "panel": "0x001788010efccbdb",
     "ambilight": "light.65pus8000_12_ambilight",

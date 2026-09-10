@@ -901,7 +901,7 @@ class FakeAgent:
 
 class TestHomeBrain(Z2MTestCase):
     def brain(self, with_z2m=True, ha_down=False):
-        agent = FakeAgent(dict(CFG), ha_down=ha_down)
+        agent = FakeAgent(dict(CFG, z2m_autoconnect=False), ha_down=ha_down)   # Tests steuern den Client selbst
         z = self.make_client() if with_z2m else None
         hb = homebrain.HomeBrain(agent, z2m=z)
         hb._ollama = lambda text: (_ for _ in ()).throw(ConnectionError("kein Ollama"))   # → Regel-Fallback
@@ -1053,6 +1053,32 @@ class TestHomeBrain(Z2MTestCase):
         hb, agent, z = self.brain()
         self.assertEqual(hb.handle("schliess die tür ab"), "✓ Tür abgeschlossen")
         self.assertEqual(agent.nuki, [("nuki/4BCE74DF/lockAction", "2")])
+
+    def test_autoconnect_from_config(self):
+        """Ohne übergebenen Client verbindet sich HomeBrain selbst (lichtapp.py bleibt unverändert)."""
+        homebrain._Z2M_AUTO = None
+        agent = FakeAgent(dict(CFG, mqtt_port=self.broker.port))
+        hb = homebrain.HomeBrain(agent)
+        self.addCleanup(lambda: (hb.z2m.stop(), setattr(homebrain, "_Z2M_AUTO", None)))
+        hb._ollama = lambda text: (_ for _ in ()).throw(ConnectionError("kein Ollama"))
+        self.assertIsNotNone(hb.z2m)
+        self.assertTrue(wait_for(lambda: hb.z2m.connected and hb.z2m.light_names()))
+        self.assertIs(homebrain.HomeBrain(agent).z2m, hb.z2m)                 # ein Client pro Prozess
+        n = len(self.sets("Küchen Panel"))
+        self.assertEqual(hb.execute([{"action": "brightness", "target": "küchen panel", "pct": 50}]), ["küchen panel 50%"])
+        self.assertTrue(wait_for(lambda: len(self.sets("Küchen Panel")) == n + 1))
+        # Broker weg → Transport fällt auf agent.z2m_set zurück statt zu scheitern
+        self.broker.kick(hb.z2m.mqtt.client_id)
+        hb.z2m.mqtt.port = 1
+        self.assertTrue(wait_for(lambda: not hb.z2m.connected, 5))
+        self.assertEqual(hb.execute([{"action": "power", "target": "bar", "on": False}]), ["bar aus"])
+        self.assertEqual(agent.z2m_set_calls[-1], ("ThomysHomeBar", {"state": "OFF", "transition": 2}))
+
+    def test_autoconnect_disabled_or_unconfigured(self):
+        homebrain._Z2M_AUTO = None
+        self.assertIsNone(homebrain.HomeBrain(FakeAgent({"bar": "x"})).z2m)                      # kein mqtt_host
+        self.assertIsNone(homebrain.HomeBrain(FakeAgent(dict(CFG, z2m_autoconnect=False))).z2m)   # abgeschaltet
+        self.assertIsNone(homebrain._Z2M_AUTO)
 
     def test_without_z2m_uses_agent_transport(self):
         hb, agent, z = self.brain(with_z2m=False)

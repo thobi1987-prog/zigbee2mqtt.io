@@ -28,17 +28,43 @@ Das Konzept in `docs/ThomysHomeAgent_RaspberryPi_Konzept.pdf` sieht vor, dass Th
 
 ## Dateien
 
-| Datei                 | Zweck                                                                                                                                                     |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `z2m.py`              | MQTT-Client (Subscribe, Keepalive, Reconnect) + `Zigbee2MQTT`-Klasse mit Cache, Anfragen mit `transaction`, Licht-Steuerung                               |
-| `z2m_api.py`          | HTTP-Endpunkte `/api/z2m/*` für `lichtapp.py`; läuft auch alleine als Testserver mit Vorschau-Seite                                                       |
-| `homebrain.py`        | Ersetzt die bisherige Datei: Zigbee-Leuchten aus Zigbee2MQTT sind Sprachbefehl-Ziele, HA und Zigbee laufen unabhängig                                     |
-| `test_z2m.py`         | Tests mit simuliertem Broker und simuliertem Zigbee2MQTT 2.13.0 (`python3 test_z2m.py`)                                                                   |
-| `z2m_page.py`         | Zigbee-Oberfläche `/zigbee` in ThomysHomeAgent (Geräte, Aktivität, Gruppen, Bridge) – nachgebaut nach dem Zigbee2MQTT-Frontend, gespeist aus `/api/z2m/*` |
-| `pwa.py`              | Macht das Dashboard auf dem Handy als App installierbar (Manifest, Service Worker, Icons); `test_pwa.py` testet es                                        |
-| `desktop_icon.py`     | Legt das Projekt mit Icon auf den Schreibtisch des Laptops und kopiert dabei alle Dateien nach `~/lichtagent/`; `test_desktop_icon.py` testet es          |
-| `docs/`               | Konzept „ThomysHomeAgent auf dem Raspberry Pi“ (PDF) und weitere Unterlagen zum Projekt                                                                   |
-| `config.example.json` | Alle Schlüssel der `config.json` inkl. der neuen (ohne Zugangsdaten)                                                                                      |
+| Datei                 | Zweck                                                                                                                                                                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `z2m.py`              | MQTT-Client (Subscribe, Keepalive, Reconnect) + `Zigbee2MQTT`-Klasse mit Cache, Anfragen mit `transaction`, Licht-Steuerung                                                                                                                                      |
+| `z2m_api.py`          | HTTP-Endpunkte `/api/z2m/*` für `lichtapp.py`; läuft auch alleine als Testserver mit Vorschau-Seite                                                                                                                                                              |
+| `homebrain.py`        | Ersetzt die bisherige Datei: Zigbee-Leuchten aus Zigbee2MQTT sind Sprachbefehl-Ziele, HA und Zigbee laufen unabhängig                                                                                                                                            |
+| `test_z2m.py`         | Tests mit simuliertem Broker und simuliertem Zigbee2MQTT 2.13.0 (`python3 test_z2m.py`)                                                                                                                                                                          |
+| `z2m_page.py`         | Zigbee-Oberfläche `/zigbee` in ThomysHomeAgent (Geräte, Aktivität, Gruppen, Bridge) – nachgebaut nach dem Zigbee2MQTT-Frontend, gespeist aus `/api/z2m/*`                                                                                                        |
+| `thomyshome_proxy.py` | Vorschalt-Server (Port 8098): liefert `/zigbee`, `/api/z2m/*` und die Handy-App selbst und reicht alles andere an `lichtapp.py` weiter – **kein Eingriff in `lichtapp.py` nötig**; `thomyshome-proxy.service` startet ihn als Dienst, `test_proxy.py` testet ihn |
+| `pwa.py`              | Macht das Dashboard auf dem Handy als App installierbar (Manifest, Service Worker, Icons); `test_pwa.py` testet es                                                                                                                                               |
+| `desktop_icon.py`     | Legt das Projekt mit Icon auf den Schreibtisch des Laptops und kopiert dabei alle Dateien nach `~/lichtagent/`; `test_desktop_icon.py` testet es                                                                                                                 |
+| `docs/`               | Konzept „ThomysHomeAgent auf dem Raspberry Pi“ (PDF) und weitere Unterlagen zum Projekt                                                                                                                                                                          |
+| `config.example.json` | Alle Schlüssel der `config.json` inkl. der neuen (ohne Zugangsdaten)                                                                                                                                                                                             |
+
+## Ohne Änderung an `lichtapp.py`: der ThomysHome-Proxy (empfohlen)
+
+Wer `lichtapp.py` nicht anfassen will, startet stattdessen `thomyshome_proxy.py`. Er läuft auf **Port 8098** vor dem bestehenden Dashboard (Port 8099) und
+
+- beantwortet `/zigbee`, `/api/z2m/*` sowie die Dateien der Handy-App selbst,
+- reicht **alles andere** unverändert an `lichtapp.py` weiter (Grundriss, Szenen, `/api/ask`, `/api/state`, Bearbeiten-Modus …),
+- fügt in die HTML-Seiten des Dashboards die App-Kopfzeilen (installierbar auf dem Handy) und unten rechts einen Knopf **„⚡ Zigbee“** ein.
+
+Die neue `homebrain.py` verbindet sich beim Start von `lichtapp.py` **selbst** mit Zigbee2MQTT (`z2m_autoconnect`, Standard an; `"z2m_autoconnect": false` in `config.json` schaltet es ab). Damit kennen die Sprachbefehle alle Zigbee-Leuchten, ohne dass `lichtapp.py` einen Client übergibt. Ist der Broker nicht erreichbar, läuft die Bar wie bisher über `agent.z2m_set()`.
+
+Adresse für Browser, Handy-App und Schreibtisch-Starter ist dann `http://192.168.1.54:8098`. PicoClaws `smarthome`-Skill kann weiter Port 8099 benutzen; `/api/z2m/*` erreicht er über 8098.
+
+**Einrichten (einmalig, im Terminal auf dem Laptop):**
+
+```bash
+cd ~/lichtagent && mkdir -p ~/.config/systemd/user && cp thomyshome-proxy.service ~/.config/systemd/user/ \
+ && systemctl --user daemon-reload && systemctl --user enable --now thomyshome-proxy.service \
+ && systemctl --user restart thomyshomeagent.service \
+ && sleep 3 && systemctl --user --no-pager status thomyshome-proxy.service | head -5 && curl -s http://127.0.0.1:8098/api/z2m/status
+```
+
+Der Neustart von `thomyshomeagent.service` lädt die neue `homebrain.py`. Prüfen: `http://192.168.1.54:8098` zeigt das gewohnte Dashboard mit dem Zigbee-Knopf, `http://192.168.1.54:8098/zigbee` die Zigbee-Seite. Logs: `journalctl --user -u thomyshome-proxy.service -f`.
+
+Wer die Routen lieber direkt in `lichtapp.py` einbaut (Checkliste weiter unten), braucht den Proxy nicht — beides zusammen geht auch.
 
 ## Installation auf dem Laptop (192.168.1.54)
 
@@ -107,6 +133,8 @@ Das Konzept in `docs/ThomysHomeAgent_RaspberryPi_Konzept.pdf` sieht vor, dass Th
     ```
 
 ## Einbau-Checkliste für den KI-Helfer auf dem Laptop (Hermes)
+
+> Nur nötig, wenn die Routen direkt in `lichtapp.py` sollen. Mit dem ThomysHome-Proxy (oben) entfallen die Schritte 2 bis 6.
 
 Diese Schritte setzen voraus, dass `z2m.py`, `z2m_api.py` und die neue `homebrain.py` bereits in `~/lichtagent/` liegen (Schritt 1 oben). `lichtapp.py` und `lichtagent.py` bleiben bis auf die genannten Stellen unverändert.
 

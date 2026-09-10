@@ -38,8 +38,9 @@ import pwa  # noqa: E402
 
 NEVER_TOUCH = {"lichtapp.py", "lichtagent.py", "config.json", "settings.json", "scenes.json", "layout.json",
                "homebrain.py.bak", "ca.key", "server.key", "ca.crt", "server.crt"}
-PROJECT_FILES = ("z2m.py", "z2m_api.py", "homebrain.py", "pwa.py", "desktop_icon.py",
-                 "test_z2m.py", "test_pwa.py", "test_desktop_icon.py", "README.md", "config.example.json")
+PROJECT_FILES = ("z2m.py", "z2m_api.py", "z2m_page.py", "homebrain.py", "pwa.py", "desktop_icon.py",
+                 "thomyshome_proxy.py", "thomyshome-proxy.service",
+                 "test_z2m.py", "test_pwa.py", "test_desktop_icon.py", "test_proxy.py", "README.md", "config.example.json")
 PROJECT_DIRS = ("docs",)
 
 
